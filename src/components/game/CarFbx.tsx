@@ -3,13 +3,24 @@
 import { useLoader } from "@react-three/fiber";
 import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Box3, Mesh, Vector3 } from "three";
-import { FBXLoader } from "three-stdlib";
+import {
+  Box3,
+  BufferGeometry,
+  Material,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  Vector3,
+} from "three";
+import { FBXLoader, GLTFLoader } from "three-stdlib";
 import { CarController } from "./CarController";
 import { getFigureEightFrame, getFigureEightPoint } from "./trackMath";
 
-const CAR_MODEL_PATH = "/models/car/car.fbx";
-const SPAWN_T = Math.PI;
+const CAR_GLB_PATH = "/models/car/car.glb";
+const CAR_FBX_PATH = "/models/car/car.fbx";
+const SPAWN_T = 0.16;
+
+type CarAssetFormat = "glb" | "fbx" | "none";
 
 function CarPlaceholder() {
   return (
@@ -26,49 +37,115 @@ function CarPlaceholder() {
   );
 }
 
+function tuneMaterial(input: Material): Material {
+  const material = input.clone();
+  const candidate = material as MeshStandardMaterial;
+
+  if ("metalness" in candidate && typeof candidate.metalness === "number") {
+    candidate.metalness = Math.min(candidate.metalness, 0.25);
+  }
+  if ("roughness" in candidate && typeof candidate.roughness === "number") {
+    candidate.roughness = Math.max(candidate.roughness, 0.62);
+  }
+
+  material.needsUpdate = true;
+  return material;
+}
+
+function hasInvalidVertices(geometry: BufferGeometry): boolean {
+  const position = geometry.getAttribute("position");
+  if (!position || position.count === 0) {
+    return true;
+  }
+
+  const values = position.array as ArrayLike<number>;
+  const sampleStep = Math.max(3, Math.floor(values.length / 900));
+
+  for (let i = 0; i < values.length; i += sampleStep) {
+    const value = values[i];
+    if (!Number.isFinite(value)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizeModel(root: Object3D): Object3D {
+  const model = root.clone(true);
+  model.traverse((child) => {
+    const maybeMesh = child as Mesh;
+    if (maybeMesh.isMesh) {
+      const geometry = maybeMesh.geometry as BufferGeometry;
+      if (!geometry || hasInvalidVertices(geometry)) {
+        maybeMesh.visible = false;
+        return;
+      }
+
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      geometry.computeVertexNormals();
+
+      const sphere = geometry.boundingSphere;
+      if (!sphere || !Number.isFinite(sphere.radius) || sphere.radius <= 0) {
+        maybeMesh.visible = false;
+        return;
+      }
+
+      if (Array.isArray(maybeMesh.material)) {
+        maybeMesh.material = maybeMesh.material.map((material) => tuneMaterial(material));
+      } else if (maybeMesh.material) {
+        maybeMesh.material = tuneMaterial(maybeMesh.material);
+      }
+
+      maybeMesh.castShadow = true;
+      maybeMesh.receiveShadow = true;
+    }
+  });
+
+  const box = new Box3().setFromObject(model);
+  const size = new Vector3();
+  const center = new Vector3();
+  box.getSize(size);
+
+  const maxDimension = Math.max(size.x, size.y, size.z) || 1;
+  const targetLength = 3.5;
+  const scale = targetLength / maxDimension;
+  model.scale.setScalar(scale);
+
+  box.setFromObject(model);
+  box.getCenter(center);
+  model.position.sub(center);
+
+  box.setFromObject(model);
+  model.position.y -= box.min.y;
+
+  return model;
+}
+
 function LoadedFbxModel({ path }: { path: string }) {
   const fbx = useLoader(FBXLoader, path);
 
-  const normalizedModel = useMemo(() => {
-    const model = fbx.clone(true);
-    model.traverse((child) => {
-      const maybeMesh = child as Mesh;
-      if (maybeMesh.isMesh) {
-        maybeMesh.castShadow = true;
-        maybeMesh.receiveShadow = true;
-      }
-    });
+  const normalizedModel = useMemo(() => normalizeModel(fbx), [fbx]);
 
-    const box = new Box3().setFromObject(model);
-    const size = new Vector3();
-    const center = new Vector3();
-    box.getSize(size);
+  return <primitive object={normalizedModel} />;
+}
 
-    const maxDimension = Math.max(size.x, size.y, size.z) || 1;
-    const targetLength = 3.5;
-    const scale = targetLength / maxDimension;
-    model.scale.setScalar(scale);
+function LoadedGlbModel({ path }: { path: string }) {
+  const gltf = useLoader(GLTFLoader, path);
 
-    box.setFromObject(model);
-    box.getCenter(center);
-    model.position.sub(center);
-
-    box.setFromObject(model);
-    model.position.y -= box.min.y;
-
-    return model;
-  }, [fbx]);
+  const normalizedModel = useMemo(() => normalizeModel(gltf.scene), [gltf]);
 
   return <primitive object={normalizedModel} />;
 }
 
 export function CarFbx() {
   const bodyRef = useRef<RapierRigidBody | null>(null);
-  const [assetExists, setAssetExists] = useState<boolean | null>(null);
+  const [assetFormat, setAssetFormat] = useState<CarAssetFormat>("none");
 
   const spawn = useMemo(() => {
     const frame = getFigureEightFrame(SPAWN_T);
-    const point = getFigureEightPoint(SPAWN_T).add(new Vector3(0, 0.78, 0));
+    const point = getFigureEightPoint(SPAWN_T).add(new Vector3(0, 1.05, 0));
     const yaw = Math.atan2(frame.tangent.x, frame.tangent.z);
 
     return {
@@ -80,17 +157,31 @@ export function CarFbx() {
   useEffect(() => {
     let isActive = true;
 
-    fetch(CAR_MODEL_PATH, { method: "HEAD" })
-      .then((res) => {
-        if (isActive) {
-          setAssetExists(res.ok);
+    const selectAssetFormat = async () => {
+      try {
+        const glbRes = await fetch(CAR_GLB_PATH, { method: "HEAD" });
+        if (isActive && glbRes.ok) {
+          setAssetFormat("glb");
+          return;
         }
-      })
-      .catch(() => {
-        if (isActive) {
-          setAssetExists(false);
+
+        const fbxRes = await fetch(CAR_FBX_PATH, { method: "HEAD" });
+        if (isActive && fbxRes.ok) {
+          setAssetFormat("fbx");
+          return;
         }
-      });
+
+        if (isActive) {
+          setAssetFormat("none");
+        }
+      } catch {
+        if (isActive) {
+          setAssetFormat("none");
+        }
+      }
+    };
+
+    void selectAssetFormat();
 
     return () => {
       isActive = false;
@@ -121,9 +212,13 @@ export function CarFbx() {
           restitution={0.01}
         />
 
-        {assetExists ? (
+        {assetFormat === "glb" ? (
           <Suspense fallback={<CarPlaceholder />}>
-            <LoadedFbxModel path={CAR_MODEL_PATH} />
+            <LoadedGlbModel path={CAR_GLB_PATH} />
+          </Suspense>
+        ) : assetFormat === "fbx" ? (
+          <Suspense fallback={<CarPlaceholder />}>
+            <LoadedFbxModel path={CAR_FBX_PATH} />
           </Suspense>
         ) : (
           <CarPlaceholder />

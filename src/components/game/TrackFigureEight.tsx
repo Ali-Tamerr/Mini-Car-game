@@ -94,7 +94,7 @@ export function TrackFigureEight() {
     () => createTrackStripGeometry(TRACK_ROAD_WIDTH, 900, 0.02),
     [],
   );
-  const collisionSegments = useMemo(() => createTrackColliderSegments(760), []);
+  const collisionSegments = useMemo(() => createTrackColliderSegments(1200), []);
 
   const curbBlocks = useMemo(() => buildCurbBlocks(), []);
   const laneDashBlocks = useMemo(
@@ -108,13 +108,20 @@ export function TrackFigureEight() {
         {collisionSegments.map((segment, index) => (
           <CuboidCollider
             key={index}
-            args={[TRACK_ROAD_WIDTH * 0.5, 0.16, segment.halfLength]}
+            args={[TRACK_ROAD_WIDTH * 0.5, 0.15, segment.halfLength]}
             position={segment.position}
             rotation={segment.rotation}
             friction={1.35}
             restitution={0}
           />
         ))}
+
+        <CuboidCollider
+          args={[34, 0.12, 20]}
+          position={[0, -0.7, 0]}
+          friction={1.2}
+          restitution={0}
+        />
 
         <mesh geometry={borderGeometry} castShadow receiveShadow>
           <meshStandardMaterial color="#f2f2f2" roughness={0.5} metalness={0.05} />

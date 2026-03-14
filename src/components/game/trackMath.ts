@@ -78,10 +78,12 @@ export function createTrackStripGeometry(
   width: number,
   samples = 560,
   yOffset = 0,
+  options?: { doubleSided?: boolean },
 ): THREE.BufferGeometry {
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
+  const doubleSided = options?.doubleSided ?? false;
 
   const heightOffset = new THREE.Vector3(0, yOffset, 0);
 
@@ -113,6 +115,11 @@ export function createTrackStripGeometry(
 
     indices.push(a, b, c);
     indices.push(b, d, c);
+
+    if (doubleSided) {
+      indices.push(c, b, a);
+      indices.push(c, d, b);
+    }
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -127,7 +134,7 @@ export function createTrackStripGeometry(
   return geometry;
 }
 
-export function createTrackColliderSegments(samples = 720): TrackColliderSegment[] {
+export function createTrackColliderSegments(samples = 1200): TrackColliderSegment[] {
   const segments: TrackColliderSegment[] = [];
 
   for (let i = 0; i < samples; i += 1) {
@@ -151,9 +158,9 @@ export function createTrackColliderSegments(samples = 720): TrackColliderSegment
     const pitch = -Math.asin(clampedY);
 
     segments.push({
-      position: [midpoint.x, midpoint.y - 0.08, midpoint.z],
+      position: [midpoint.x, midpoint.y - 0.11, midpoint.z],
       rotation: [pitch, yaw, 0],
-      halfLength: Math.max(0.14, segmentLength * 0.68),
+      halfLength: Math.max(0.09, segmentLength * 0.54),
     });
   }
 
