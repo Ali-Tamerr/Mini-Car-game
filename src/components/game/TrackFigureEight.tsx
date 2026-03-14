@@ -2,7 +2,7 @@
 
 import { useGLTF } from "@react-three/drei";
 import { RigidBody } from "@react-three/rapier";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Mesh, Object3D } from "three";
 
 const TRACK_GLB_PATH = "/track/mini_race_track_figure_8.glb";
@@ -26,9 +26,17 @@ function prepareTrackScene(root: Object3D): Object3D {
   return scene;
 }
 
-export function TrackFigureEight() {
+type TrackFigureEightProps = {
+  onLoaded?: () => void;
+};
+
+export function TrackFigureEight({ onLoaded }: TrackFigureEightProps) {
   const gltf = useGLTF(TRACK_GLB_PATH);
   const trackScene = useMemo(() => prepareTrackScene(gltf.scene), [gltf.scene]);
+
+  useEffect(() => {
+    onLoaded?.();
+  }, [onLoaded, trackScene]);
 
   return (
     <RigidBody

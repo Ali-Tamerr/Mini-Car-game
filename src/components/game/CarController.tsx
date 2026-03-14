@@ -9,6 +9,7 @@ type CarControllerProps = {
   bodyRef: MutableRefObject<RapierRigidBody | null>;
   spawnPosition: [number, number, number];
   spawnYaw: number;
+  controlsEnabled: boolean;
 };
 
 const forwardDir = new Vector3();
@@ -73,6 +74,7 @@ export function CarController({
   bodyRef,
   spawnPosition,
   spawnYaw,
+  controlsEnabled,
 }: CarControllerProps) {
   const rawKeysRef = useRef<RawKeyState>({ ...defaultRawKeys });
   const spawnGuardElapsedRef = useRef(0);
@@ -187,6 +189,21 @@ export function CarController({
 
     if (isReset) {
       resetToSpawn(body);
+      return;
+    }
+
+    if (!controlsEnabled) {
+      headingLockYawRef.current = null;
+      const velocity = body.linvel();
+      const angularVelocity = body.angvel();
+      body.setLinvel(
+        { x: velocity.x * 0.86, y: velocity.y, z: velocity.z * 0.86 },
+        true,
+      );
+      body.setAngvel(
+        { x: angularVelocity.x * 0.4, y: angularVelocity.y * 0.4, z: 0 },
+        true,
+      );
       return;
     }
 

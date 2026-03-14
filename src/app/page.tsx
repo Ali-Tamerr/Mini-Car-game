@@ -1,11 +1,5 @@
-"use client";
-
-import GameExperience from "@/components/game/GameExperience";
+import SetupExperience from "@/components/game/SetupExperience";
 
 export default function Home() {
-  return (
-    <main className="game-page">
-      <GameExperience />
-    </main>
-  );
+  return <SetupExperience />;
 }

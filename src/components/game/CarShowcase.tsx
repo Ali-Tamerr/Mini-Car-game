@@ -1,18 +1,11 @@
 "use client";
 
-import { useLoader } from "@react-three/fiber";
-import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier";
-import {
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
+import { Canvas, useFrame, useLoader } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Box3,
   BufferGeometry,
+  Group,
   Material,
   Mesh,
   MeshStandardMaterial,
@@ -20,21 +13,19 @@ import {
   Vector3,
 } from "three";
 import { FBXLoader, GLTFLoader } from "three-stdlib";
-import { CarController } from "./CarController";
-import { RACE_SPAWN_POSITION, RACE_SPAWN_YAW } from "./raceConfig";
 
 const CAR_GLB_PATH = "/models/car/car.glb";
 const CAR_FBX_PATH = "/models/car/car.fbx";
-const VISUAL_GROUND_CLEARANCE = 0.20;
+const SHOWCASE_GROUND_CLEARANCE = 0.08;
 
 type CarAssetFormat = "glb" | "fbx" | "none";
-type CarAssetProbeState = "checking" | CarAssetFormat;
-type CarFbxProps = {
-  bodyRef: MutableRefObject<RapierRigidBody | null>;
-  controlsEnabled: boolean;
+
+type CarShowcaseProps = {
   onLoaded?: () => void;
   onAssetMissing?: () => void;
 };
+
+type CarAssetProbeState = "checking" | CarAssetFormat;
 
 function tuneMaterial(input: Material): Material {
   const material = input.clone();
@@ -72,34 +63,37 @@ function hasInvalidVertices(geometry: BufferGeometry): boolean {
 
 function normalizeModel(root: Object3D): Object3D {
   const model = root.clone(true);
+
   model.traverse((child) => {
     const maybeMesh = child as Mesh;
-    if (maybeMesh.isMesh) {
-      const geometry = maybeMesh.geometry as BufferGeometry;
-      if (!geometry || hasInvalidVertices(geometry)) {
-        maybeMesh.visible = false;
-        return;
-      }
-
-      geometry.computeBoundingBox();
-      geometry.computeBoundingSphere();
-      geometry.computeVertexNormals();
-
-      const sphere = geometry.boundingSphere;
-      if (!sphere || !Number.isFinite(sphere.radius) || sphere.radius <= 0) {
-        maybeMesh.visible = false;
-        return;
-      }
-
-      if (Array.isArray(maybeMesh.material)) {
-        maybeMesh.material = maybeMesh.material.map((material) => tuneMaterial(material));
-      } else if (maybeMesh.material) {
-        maybeMesh.material = tuneMaterial(maybeMesh.material);
-      }
-
-      maybeMesh.castShadow = true;
-      maybeMesh.receiveShadow = true;
+    if (!maybeMesh.isMesh) {
+      return;
     }
+
+    const geometry = maybeMesh.geometry as BufferGeometry;
+    if (!geometry || hasInvalidVertices(geometry)) {
+      maybeMesh.visible = false;
+      return;
+    }
+
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry.computeVertexNormals();
+
+    const sphere = geometry.boundingSphere;
+    if (!sphere || !Number.isFinite(sphere.radius) || sphere.radius <= 0) {
+      maybeMesh.visible = false;
+      return;
+    }
+
+    if (Array.isArray(maybeMesh.material)) {
+      maybeMesh.material = maybeMesh.material.map((material) => tuneMaterial(material));
+    } else if (maybeMesh.material) {
+      maybeMesh.material = tuneMaterial(maybeMesh.material);
+    }
+
+    maybeMesh.castShadow = true;
+    maybeMesh.receiveShadow = true;
   });
 
   const box = new Box3().setFromObject(model);
@@ -108,9 +102,8 @@ function normalizeModel(root: Object3D): Object3D {
   box.getSize(size);
 
   const maxDimension = Math.max(size.x, size.y, size.z) || 1;
-  const targetLength = 3.5;
-  const scale = targetLength / maxDimension;
-  model.scale.setScalar(scale);
+  const targetLength = 2.9;
+  model.scale.setScalar(targetLength / maxDimension);
 
   box.setFromObject(model);
   box.getCenter(center);
@@ -118,14 +111,13 @@ function normalizeModel(root: Object3D): Object3D {
 
   box.setFromObject(model);
   model.position.y -= box.min.y;
-  model.position.y += VISUAL_GROUND_CLEARANCE;
+  model.position.y += SHOWCASE_GROUND_CLEARANCE;
 
   return model;
 }
 
 function LoadedFbxModel({ path, onLoaded }: { path: string; onLoaded?: () => void }) {
   const fbx = useLoader(FBXLoader, path);
-
   const normalizedModel = useMemo(() => normalizeModel(fbx), [fbx]);
 
   useEffect(() => {
@@ -137,7 +129,6 @@ function LoadedFbxModel({ path, onLoaded }: { path: string; onLoaded?: () => voi
 
 function LoadedGlbModel({ path, onLoaded }: { path: string; onLoaded?: () => void }) {
   const gltf = useLoader(GLTFLoader, path);
-
   const normalizedModel = useMemo(() => normalizeModel(gltf.scene), [gltf]);
 
   useEffect(() => {
@@ -147,22 +138,32 @@ function LoadedGlbModel({ path, onLoaded }: { path: string; onLoaded?: () => voi
   return <primitive object={normalizedModel} />;
 }
 
-export function CarFbx({
-  bodyRef,
-  controlsEnabled,
-  onLoaded,
-  onAssetMissing,
-}: CarFbxProps) {
-  const [assetFormat, setAssetFormat] = useState<CarAssetProbeState>("checking");
-  const hasNotifiedLoaded = useRef(false);
+function SlowSpin({ children }: { children: ReactNode }) {
+  const groupRef = useRef<Group | null>(null);
 
-  const spawn = useMemo(
-    () => ({
-      position: RACE_SPAWN_POSITION,
-      yaw: RACE_SPAWN_YAW,
-    }),
-    [],
-  );
+  useFrame((_, delta) => {
+    if (!groupRef.current) {
+      return;
+    }
+
+    groupRef.current.rotation.y += delta * 0.24;
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}
+
+export function CarShowcase({ onLoaded, onAssetMissing }: CarShowcaseProps) {
+  const [assetFormat, setAssetFormat] = useState<CarAssetProbeState>("checking");
+  const hasNotifiedLoadedRef = useRef(false);
+
+  const notifyLoadedOnce = () => {
+    if (hasNotifiedLoadedRef.current) {
+      return;
+    }
+
+    hasNotifiedLoadedRef.current = true;
+    onLoaded?.();
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -204,56 +205,30 @@ export function CarFbx({
     }
   }, [assetFormat, onAssetMissing]);
 
-  const notifyLoadedOnce = () => {
-    if (!hasNotifiedLoaded.current) {
-      hasNotifiedLoaded.current = true;
-      onLoaded?.();
-    }
-  };
-
   return (
-    <>
-      <RigidBody
-        ref={bodyRef}
-        type="dynamic"
-        colliders={false}
-        position={spawn.position}
-        rotation={[0, spawn.yaw, 0]}
-        mass={1.9}
-        friction={1.05}
-        restitution={0.02}
-        linearDamping={0.8}
-        angularDamping={3.4}
-        ccd
-        canSleep={false}
-        enabledRotations={[true, true, false]}
+    <div className="setup-car-canvas">
+      <Canvas
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, alpha: true }}
+        camera={{ position: [0, 1.15, 3.3], fov: 35 }}
+        style={{ width: "100%", height: "100%" }}
       >
-        <CuboidCollider
-          args={[0.9, 0.33, 1.7]}
-          position={[0, 0.33, 0]}
-          friction={1.2}
-          restitution={0.01}
-        />
+        <ambientLight intensity={0.95} />
+        <directionalLight position={[4, 6, 4]} intensity={1.2} />
+        <directionalLight position={[-3, 4, -2]} intensity={0.45} />
 
-        {assetFormat === "glb" ? (
-          <Suspense fallback={null}>
-            <LoadedGlbModel path={CAR_GLB_PATH} onLoaded={notifyLoadedOnce} />
-          </Suspense>
-        ) : assetFormat === "fbx" ? (
-          <Suspense fallback={null}>
-            <LoadedFbxModel path={CAR_FBX_PATH} onLoaded={notifyLoadedOnce} />
-          </Suspense>
-        ) : (
-          <group />
-        )}
-      </RigidBody>
-
-      <CarController
-        bodyRef={bodyRef}
-        spawnPosition={spawn.position}
-        spawnYaw={spawn.yaw}
-        controlsEnabled={controlsEnabled}
-      />
-    </>
+        <Suspense fallback={null}>
+          <SlowSpin>
+            {assetFormat === "glb" ? (
+              <LoadedGlbModel path={CAR_GLB_PATH} onLoaded={notifyLoadedOnce} />
+            ) : assetFormat === "fbx" ? (
+              <LoadedFbxModel path={CAR_FBX_PATH} onLoaded={notifyLoadedOnce} />
+            ) : (
+              <group />
+            )}
+          </SlowSpin>
+        </Suspense>
+      </Canvas>
+    </div>
   );
 }
