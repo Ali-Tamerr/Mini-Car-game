@@ -54,10 +54,6 @@ body {
 }
 
 .game-hud {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -66,6 +62,92 @@ body {
   background: rgb(0 0 0 / 50%);
   font-size: 0.8rem;
   letter-spacing: 0.02em;
+}
+
+.game-hud-wrap {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.game-zoom-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 3.3rem;
+  min-height: 8.6rem;
+  padding: 0.55rem 0.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(0 0 0 / 60%);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 25%);
+}
+
+.game-zoom-scroll__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.game-zoom-scroll__rail {
+  width: 1.25rem;
+  height: 6.8rem;
+  display: grid;
+  place-items: center;
+}
+
+.game-zoom-scroll__input {
+  width: 6.8rem;
+  height: 1.1rem;
+  margin: 0;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  accent-color: #ff5d40;
+  cursor: pointer;
+}
+
+.game-zoom-scroll__value {
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+.game-zoom-scroll__input::-webkit-slider-runnable-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6d52, #ffb59d);
+}
+
+.game-zoom-scroll__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.88rem;
+  height: 0.88rem;
+  margin-top: -0.265rem;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #ff4e32;
+}
+
+.game-zoom-scroll__input::-moz-range-track {
+  height: 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6d52, #ffb59d);
+}
+
+.game-zoom-scroll__input::-moz-range-thumb {
+  width: 0.88rem;
+  height: 0.88rem;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #ff4e32;
 }
 
 .car-loading-overlay {

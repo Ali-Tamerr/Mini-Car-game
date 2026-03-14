@@ -2,7 +2,14 @@
 
 import { useLoader } from "@react-three/fiber";
 import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import {
   Box3,
   BufferGeometry,
@@ -14,15 +21,16 @@ import {
 } from "three";
 import { FBXLoader, GLTFLoader } from "three-stdlib";
 import { CarController } from "./CarController";
-import { getFigureEightFrame, getFigureEightPoint } from "./trackMath";
 
 const CAR_GLB_PATH = "/models/car/car.glb";
 const CAR_FBX_PATH = "/models/car/car.fbx";
-const SPAWN_T = 0.16;
 const VISUAL_GROUND_CLEARANCE = 0.20;
+const SPAWN_POSITION: [number, number, number] = [0, 9.2, 0];
+const SPAWN_YAW = Math.PI * 0.5;
 
 type CarAssetFormat = "glb" | "fbx" | "none";
 type CarFbxProps = {
+  bodyRef: MutableRefObject<RapierRigidBody | null>;
   onLoaded?: () => void;
   onAssetMissing?: () => void;
 };
@@ -153,21 +161,17 @@ function LoadedGlbModel({ path, onLoaded }: { path: string; onLoaded?: () => voi
   return <primitive object={normalizedModel} />;
 }
 
-export function CarFbx({ onLoaded, onAssetMissing }: CarFbxProps) {
-  const bodyRef = useRef<RapierRigidBody | null>(null);
+export function CarFbx({ bodyRef, onLoaded, onAssetMissing }: CarFbxProps) {
   const [assetFormat, setAssetFormat] = useState<CarAssetFormat>("none");
   const hasNotifiedLoaded = useRef(false);
 
-  const spawn = useMemo(() => {
-    const frame = getFigureEightFrame(SPAWN_T);
-    const point = getFigureEightPoint(SPAWN_T).add(new Vector3(0, 0.45, 0));
-    const yaw = Math.atan2(frame.tangent.x, frame.tangent.z);
-
-    return {
-      position: [point.x, point.y, point.z] as [number, number, number],
-      yaw,
-    };
-  }, []);
+  const spawn = useMemo(
+    () => ({
+      position: SPAWN_POSITION,
+      yaw: SPAWN_YAW,
+    }),
+    [],
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -231,7 +235,7 @@ export function CarFbx({ onLoaded, onAssetMissing }: CarFbxProps) {
         angularDamping={3.4}
         ccd
         canSleep={false}
-        enabledRotations={[false, true, false]}
+        enabledRotations={[true, true, false]}
       >
         <CuboidCollider
           args={[0.9, 0.33, 1.7]}

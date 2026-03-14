@@ -1,11 +1,9 @@
 "use client";
 
-import { useKeyboardControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import type { RapierRigidBody } from "@react-three/rapier";
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { Quaternion, Vector3 } from "three";
-import { DriveControl } from "./controls";
 
 type CarControllerProps = {
   bodyRef: MutableRefObject<RapierRigidBody | null>;
@@ -21,13 +19,23 @@ const rotationQuat = new Quaternion();
 const resetQuat = new Quaternion();
 const UP = new Vector3(0, 1, 0);
 
-const MAX_SPEED = 24;
+const MAX_SPEED = 10;
 const ENGINE_FORCE = 118;
 const REVERSE_FORCE = 92;
 const TURN_RATE = 2.6;
 const LATERAL_GRIP = 5.4;
+const STRAIGHT_LINE_GRIP = 10.8;
 const COAST_DRAG = 1.1;
 const IDLE_YAW_DAMP = 0.86;
+const STRAIGHT_ASSIST_MIN_SPEED = 1.3;
+const STRAIGHT_ASSIST_GAIN = 5.8;
+const STRAIGHT_ASSIST_MAX_YAW_SPEED = 2.1;
+const STRAIGHT_ASSIST_ANGULAR_DAMP = 0.62;
+const PITCH_RATE_DAMP = 0.45;
+const MAX_NOSE_DOWN_ANGLE = 0.16;
+const MAX_NOSE_UP_ANGLE = 0.24;
+const PITCH_RETURN_GAIN = 14;
+const MAX_PITCH_RATE = 2.4;
 const SPAWN_GUARD_SECONDS = 12;
 const SPAWN_GUARD_MIN_Y = -0.25;
 const SPAWN_GUARD_RADIUS = 16;
@@ -57,17 +65,22 @@ function isArrowCode(code: string): boolean {
   );
 }
 
+function normalizeAngle(value: number): number {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
 export function CarController({
   bodyRef,
   spawnPosition,
   spawnYaw,
 }: CarControllerProps) {
-  const [, getKeys] = useKeyboardControls<DriveControl>();
   const rawKeysRef = useRef<RawKeyState>({ ...defaultRawKeys });
   const spawnGuardElapsedRef = useRef(0);
+  const headingLockYawRef = useRef<number | null>(null);
 
   const resetToSpawn = (body: RapierRigidBody) => {
     spawnGuardElapsedRef.current = 0;
+    headingLockYawRef.current = null;
     body.setTranslation(
       { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
       true,
@@ -128,12 +141,18 @@ export function CarController({
       setRawKey(event.code, false);
     };
 
+    const handleBlur = () => {
+      rawKeysRef.current = { ...defaultRawKeys };
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
     };
   }, []);
 
@@ -144,15 +163,13 @@ export function CarController({
     }
 
     spawnGuardElapsedRef.current += delta;
-
-    const keyState = getKeys();
     const rawKeys = rawKeysRef.current;
 
-    const isForward = keyState[DriveControl.Forward] || rawKeys.forward;
-    const isBackward = keyState[DriveControl.Backward] || rawKeys.backward;
-    const isLeft = keyState[DriveControl.Left] || rawKeys.left;
-    const isRight = keyState[DriveControl.Right] || rawKeys.right;
-    const isReset = keyState[DriveControl.Reset] || rawKeys.reset;
+    const isForward = rawKeys.forward;
+    const isBackward = rawKeys.backward;
+    const isLeft = rawKeys.left;
+    const isRight = rawKeys.right;
+    const isReset = rawKeys.reset;
 
     const translation = body.translation();
     const distanceFromSpawn = Math.hypot(
@@ -198,10 +215,19 @@ export function CarController({
     const velocity = body.linvel();
     const planarSpeed = Math.hypot(velocity.x, velocity.z);
     const sideSpeed = velocity.x * sideDir.x + velocity.z * sideDir.z;
+    const headingYaw = Math.atan2(forwardDir.x, forwardDir.z);
 
     let throttle = 0;
     if (isForward) throttle += 1;
     if (isBackward) throttle -= 1;
+
+    let steer = 0;
+    if (isLeft) steer += 1;
+    if (isRight) steer -= 1;
+
+    if (steer !== 0 && throttle < 0) {
+      steer *= -1;
+    }
 
     if (throttle !== 0) {
       const driveForce = throttle > 0 ? ENGINE_FORCE : REVERSE_FORCE;
@@ -218,24 +244,55 @@ export function CarController({
 
     // Reduce sideways skid so steering feels intentional with a single-body car.
     if (Math.abs(sideSpeed) > 0.01) {
+      const activeGrip = steer === 0 && throttle !== 0 ? STRAIGHT_LINE_GRIP : LATERAL_GRIP;
       const gripImpulse = sideDir
         .clone()
-        .multiplyScalar(-sideSpeed * LATERAL_GRIP * delta);
+        .multiplyScalar(-sideSpeed * activeGrip * delta);
       body.applyImpulse({ x: gripImpulse.x, y: 0, z: gripImpulse.z }, true);
     }
 
-    let steer = 0;
-    if (isLeft) steer += 1;
-    if (isRight) steer -= 1;
-
     const angularVelocity = body.angvel();
+    const pitchAngle = Math.asin(Math.max(-1, Math.min(1, driveDir.y)));
+
+    let pitchCorrection = 0;
+    if (pitchAngle < -MAX_NOSE_DOWN_ANGLE) {
+      // Negative x angular velocity lifts the nose for this +Z-forward convention.
+      pitchCorrection = -(-MAX_NOSE_DOWN_ANGLE - pitchAngle) * PITCH_RETURN_GAIN;
+    } else if (pitchAngle > MAX_NOSE_UP_ANGLE) {
+      // Positive x angular velocity lowers the nose back toward neutral.
+      pitchCorrection = (pitchAngle - MAX_NOSE_UP_ANGLE) * PITCH_RETURN_GAIN;
+    }
+
+    const stabilizedPitchRate = Math.max(
+      -MAX_PITCH_RATE,
+      Math.min(MAX_PITCH_RATE, angularVelocity.x * PITCH_RATE_DAMP + pitchCorrection),
+    );
 
     if (steer !== 0) {
+      headingLockYawRef.current = headingYaw;
       const turnScale = Math.max(0.35, Math.min(1.2, planarSpeed / 5));
       const yawSpeed = steer * TURN_RATE * turnScale;
-      body.setAngvel({ x: 0, y: yawSpeed, z: 0 }, true);
+      body.setAngvel({ x: stabilizedPitchRate, y: yawSpeed, z: 0 }, true);
     } else {
-      body.setAngvel({ x: 0, y: angularVelocity.y * IDLE_YAW_DAMP, z: 0 }, true);
+      const shouldAssistStraight = throttle !== 0 && planarSpeed > STRAIGHT_ASSIST_MIN_SPEED;
+
+      if (shouldAssistStraight) {
+        if (headingLockYawRef.current === null) {
+          headingLockYawRef.current = headingYaw;
+        }
+
+        const yawError = normalizeAngle(headingLockYawRef.current - headingYaw);
+        const yawAssist = Math.max(
+          -STRAIGHT_ASSIST_MAX_YAW_SPEED,
+          Math.min(STRAIGHT_ASSIST_MAX_YAW_SPEED, yawError * STRAIGHT_ASSIST_GAIN),
+        );
+        const stabilizedYaw = yawAssist + angularVelocity.y * STRAIGHT_ASSIST_ANGULAR_DAMP;
+
+        body.setAngvel({ x: stabilizedPitchRate, y: stabilizedYaw, z: 0 }, true);
+      } else {
+        headingLockYawRef.current = null;
+        body.setAngvel({ x: stabilizedPitchRate, y: angularVelocity.y * IDLE_YAW_DAMP, z: 0 }, true);
+      }
     }
 
     if (planarSpeed > MAX_SPEED) {
