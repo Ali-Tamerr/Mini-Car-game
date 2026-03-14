@@ -1,14 +1,16 @@
 "use client";
 
-import { CuboidCollider, RigidBody } from "@react-three/rapier";
+import { CuboidCollider, MeshCollider, RigidBody } from "@react-three/rapier";
 import { useMemo } from "react";
 import {
-  createTrackColliderSegments,
   createTrackStripGeometry,
   getFigureEightFrame,
+  getFigureEightPoint,
   TRACK_BORDER_WIDTH,
   TRACK_ROAD_WIDTH,
 } from "./trackMath";
+
+const SPAWN_SUPPORT_T = 0.16;
 
 type CurbBlock = {
   position: [number, number, number];
@@ -94,32 +96,47 @@ export function TrackFigureEight() {
     () => createTrackStripGeometry(TRACK_ROAD_WIDTH, 900, 0.02),
     [],
   );
-  const collisionSegments = useMemo(() => createTrackColliderSegments(1200), []);
+  const collisionGeometry = useMemo(
+    () => createTrackStripGeometry(TRACK_ROAD_WIDTH, 1400, 0, { doubleSided: true }),
+    [],
+  );
+  const collisionUnderlayGeometry = useMemo(
+    () => createTrackStripGeometry(TRACK_ROAD_WIDTH + 0.35, 1400, -0.12, { doubleSided: true }),
+    [],
+  );
 
   const curbBlocks = useMemo(() => buildCurbBlocks(), []);
   const laneDashBlocks = useMemo(
     () => [-1.35, 1.35].flatMap((offset) => buildLaneDashBlocks(offset)),
     [],
   );
+  const spawnSupport = useMemo(() => {
+    const point = getFigureEightPoint(SPAWN_SUPPORT_T);
+    const frame = getFigureEightFrame(SPAWN_SUPPORT_T);
+    const yaw = Math.atan2(frame.tangent.x, frame.tangent.z);
+
+    return {
+      position: [point.x, -0.19, point.z] as [number, number, number],
+      yaw,
+    };
+  }, []);
 
   return (
     <group>
       <RigidBody type="fixed" colliders={false} friction={1.35} restitution={0.02}>
-        {collisionSegments.map((segment, index) => (
-          <CuboidCollider
-            key={index}
-            args={[TRACK_ROAD_WIDTH * 0.5, 0.15, segment.halfLength]}
-            position={segment.position}
-            rotation={segment.rotation}
-            friction={1.35}
-            restitution={0}
-          />
-        ))}
+        <MeshCollider type="trimesh">
+          <mesh geometry={collisionGeometry} visible={false} />
+        </MeshCollider>
+
+        <MeshCollider type="trimesh">
+          <mesh geometry={collisionUnderlayGeometry} visible={false} />
+        </MeshCollider>
 
         <CuboidCollider
-          args={[34, 0.12, 20]}
-          position={[0, -0.7, 0]}
-          friction={1.2}
+          args={[TRACK_ROAD_WIDTH * 0.5, 0.19, 4.2]}
+          position={spawnSupport.position}
+          rotation={[0, spawnSupport.yaw, 0]}
+          friction={1.35}
           restitution={0}
         />
 

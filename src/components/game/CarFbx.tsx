@@ -19,8 +19,13 @@ import { getFigureEightFrame, getFigureEightPoint } from "./trackMath";
 const CAR_GLB_PATH = "/models/car/car.glb";
 const CAR_FBX_PATH = "/models/car/car.fbx";
 const SPAWN_T = 0.16;
+const VISUAL_GROUND_CLEARANCE = 0.20;
 
 type CarAssetFormat = "glb" | "fbx" | "none";
+type CarFbxProps = {
+  onLoaded?: () => void;
+  onAssetMissing?: () => void;
+};
 
 function CarPlaceholder() {
   return (
@@ -119,33 +124,43 @@ function normalizeModel(root: Object3D): Object3D {
 
   box.setFromObject(model);
   model.position.y -= box.min.y;
+  model.position.y += VISUAL_GROUND_CLEARANCE;
 
   return model;
 }
 
-function LoadedFbxModel({ path }: { path: string }) {
+function LoadedFbxModel({ path, onLoaded }: { path: string; onLoaded?: () => void }) {
   const fbx = useLoader(FBXLoader, path);
 
   const normalizedModel = useMemo(() => normalizeModel(fbx), [fbx]);
 
+  useEffect(() => {
+    onLoaded?.();
+  }, [onLoaded]);
+
   return <primitive object={normalizedModel} />;
 }
 
-function LoadedGlbModel({ path }: { path: string }) {
+function LoadedGlbModel({ path, onLoaded }: { path: string; onLoaded?: () => void }) {
   const gltf = useLoader(GLTFLoader, path);
 
   const normalizedModel = useMemo(() => normalizeModel(gltf.scene), [gltf]);
 
+  useEffect(() => {
+    onLoaded?.();
+  }, [onLoaded]);
+
   return <primitive object={normalizedModel} />;
 }
 
-export function CarFbx() {
+export function CarFbx({ onLoaded, onAssetMissing }: CarFbxProps) {
   const bodyRef = useRef<RapierRigidBody | null>(null);
   const [assetFormat, setAssetFormat] = useState<CarAssetFormat>("none");
+  const hasNotifiedLoaded = useRef(false);
 
   const spawn = useMemo(() => {
     const frame = getFigureEightFrame(SPAWN_T);
-    const point = getFigureEightPoint(SPAWN_T).add(new Vector3(0, 1.05, 0));
+    const point = getFigureEightPoint(SPAWN_T).add(new Vector3(0, 0.45, 0));
     const yaw = Math.atan2(frame.tangent.x, frame.tangent.z);
 
     return {
@@ -188,6 +203,19 @@ export function CarFbx() {
     };
   }, []);
 
+  useEffect(() => {
+    if (assetFormat === "none") {
+      onAssetMissing?.();
+    }
+  }, [assetFormat, onAssetMissing]);
+
+  const notifyLoadedOnce = () => {
+    if (!hasNotifiedLoaded.current) {
+      hasNotifiedLoaded.current = true;
+      onLoaded?.();
+    }
+  };
+
   return (
     <>
       <RigidBody
@@ -207,18 +235,18 @@ export function CarFbx() {
       >
         <CuboidCollider
           args={[0.9, 0.33, 1.7]}
-          position={[0, 0.4, 0]}
+          position={[0, 0.33, 0]}
           friction={1.2}
           restitution={0.01}
         />
 
         {assetFormat === "glb" ? (
           <Suspense fallback={<CarPlaceholder />}>
-            <LoadedGlbModel path={CAR_GLB_PATH} />
+            <LoadedGlbModel path={CAR_GLB_PATH} onLoaded={notifyLoadedOnce} />
           </Suspense>
         ) : assetFormat === "fbx" ? (
           <Suspense fallback={<CarPlaceholder />}>
-            <LoadedFbxModel path={CAR_FBX_PATH} />
+            <LoadedFbxModel path={CAR_FBX_PATH} onLoaded={notifyLoadedOnce} />
           </Suspense>
         ) : (
           <CarPlaceholder />

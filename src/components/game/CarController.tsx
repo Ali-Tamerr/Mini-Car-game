@@ -28,6 +28,9 @@ const TURN_RATE = 2.6;
 const LATERAL_GRIP = 5.4;
 const COAST_DRAG = 1.1;
 const IDLE_YAW_DAMP = 0.86;
+const SPAWN_GUARD_SECONDS = 12;
+const SPAWN_GUARD_MIN_Y = -0.25;
+const SPAWN_GUARD_RADIUS = 16;
 
 type RawKeyState = {
   forward: boolean;
@@ -61,6 +64,27 @@ export function CarController({
 }: CarControllerProps) {
   const [, getKeys] = useKeyboardControls<DriveControl>();
   const rawKeysRef = useRef<RawKeyState>({ ...defaultRawKeys });
+  const spawnGuardElapsedRef = useRef(0);
+
+  const resetToSpawn = (body: RapierRigidBody) => {
+    spawnGuardElapsedRef.current = 0;
+    body.setTranslation(
+      { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
+      true,
+    );
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    resetQuat.setFromAxisAngle(new Vector3(0, 1, 0), spawnYaw);
+    body.setRotation(
+      {
+        x: resetQuat.x,
+        y: resetQuat.y,
+        z: resetQuat.z,
+        w: resetQuat.w,
+      },
+      true,
+    );
+  };
 
   useEffect(() => {
     const setRawKey = (code: string, pressed: boolean) => {
@@ -119,6 +143,8 @@ export function CarController({
       return;
     }
 
+    spawnGuardElapsedRef.current += delta;
+
     const keyState = getKeys();
     const rawKeys = rawKeysRef.current;
 
@@ -128,23 +154,22 @@ export function CarController({
     const isRight = keyState[DriveControl.Right] || rawKeys.right;
     const isReset = keyState[DriveControl.Reset] || rawKeys.reset;
 
+    const translation = body.translation();
+    const distanceFromSpawn = Math.hypot(
+      translation.x - spawnPosition[0],
+      translation.z - spawnPosition[2],
+    );
+    if (
+      spawnGuardElapsedRef.current < SPAWN_GUARD_SECONDS &&
+      translation.y < SPAWN_GUARD_MIN_Y &&
+      distanceFromSpawn < SPAWN_GUARD_RADIUS
+    ) {
+      resetToSpawn(body);
+      return;
+    }
+
     if (isReset) {
-      body.setTranslation(
-        { x: spawnPosition[0], y: spawnPosition[1], z: spawnPosition[2] },
-        true,
-      );
-      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      resetQuat.setFromAxisAngle(new Vector3(0, 1, 0), spawnYaw);
-      body.setRotation(
-        {
-          x: resetQuat.x,
-          y: resetQuat.y,
-          z: resetQuat.z,
-          w: resetQuat.w,
-        },
-        true,
-      );
+      resetToSpawn(body);
       return;
     }
 

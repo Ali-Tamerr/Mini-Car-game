@@ -7,7 +7,12 @@ import { CarFbx } from "./CarFbx";
 import { FixedCamera } from "./FixedCamera";
 import { TrackFigureEight } from "./TrackFigureEight";
 
-export function GameCanvas() {
+type GameCanvasProps = {
+  onCarLoaded?: () => void;
+  onCarAssetMissing?: () => void;
+};
+
+export function GameCanvas({ onCarLoaded, onCarAssetMissing }: GameCanvasProps) {
   return (
     <Canvas
       shadows
@@ -30,9 +35,9 @@ export function GameCanvas() {
 
       <Environment preset="sunset" background={false} />
 
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[0, -9.81, 0]} timeStep={1 / 120}>
         <TrackFigureEight />
-        <CarFbx />
+        <CarFbx onLoaded={onCarLoaded} onAssetMissing={onCarAssetMissing} />
       </Physics>
     </Canvas>
   );
