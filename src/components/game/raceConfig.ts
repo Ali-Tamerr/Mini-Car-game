@@ -4,7 +4,7 @@ export const RACE_SPAWN_YAW = Math.PI * 0.8;
 export const FINISH_LINE_POSITION: [number, number, number] = [1, 3.3, -1];
 export const FINISH_LINE_YAW = Math.PI * 0.8;
 
-export const SHOW_FINISH_LINE_MARKER = true;
+export const SHOW_FINISH_LINE_MARKER = false;
 export const FINISH_LINE_VISUAL_WIDTH = 10;
 export const FINISH_LINE_VISUAL_THICKNESS = 0.2
 

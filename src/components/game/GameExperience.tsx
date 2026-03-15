@@ -146,12 +146,16 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
       {showRaceHud && (
         <>
           <div className="game-hud-wrap">
-            <div className="game-hud">
+            <div className="setup-panel setup-panel--hud game-hud">
               <strong>WASD</strong> drive & steer
               <span>R resets the car</span>
             </div>
 
-            <div className="game-zoom-scroll" role="group" aria-label="Camera zoom control">
+            <div
+              className="setup-panel setup-panel--hud game-zoom-scroll"
+              role="group"
+              aria-label="Camera zoom control"
+            >
               <span className="game-zoom-scroll__label">Zoom</span>
               <div className="game-zoom-scroll__rail">
                 <input
@@ -171,7 +175,7 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
             </div>
           </div>
 
-          <div className="race-hud" role="status" aria-live="polite">
+          <div className="setup-panel setup-panel--hud race-hud" role="status" aria-live="polite">
             <div className="race-hud__row">
               <span>Laps</span>
               <strong>{completedLaps}/{targetLaps}</strong>
@@ -190,7 +194,7 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
 
       {racePhase === "finished" && (
         <div className="win-overlay">
-          <div className="win-panel">
+          <div className="setup-panel setup-panel--win win-panel">
             <h2>You Win!</h2>
             <p>{targetLaps} laps completed.</p>
 
@@ -208,7 +212,7 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
             <div className="win-actions">
               <button
                 type="button"
-                className="win-action-primary"
+                className="setup-start-button setup-start-button--win win-action-primary"
                 onClick={() => {
                   router.push("/");
                 }}

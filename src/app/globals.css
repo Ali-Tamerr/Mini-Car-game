@@ -57,9 +57,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  width: auto;
+  min-width: 13.4rem;
   padding: 0.65rem 0.85rem;
-  border-radius: 0.7rem;
-  background: rgb(0 0 0 / 50%);
   font-size: 0.8rem;
   letter-spacing: 0.02em;
 }
@@ -83,10 +83,6 @@ body {
   min-width: 3.3rem;
   min-height: 8.6rem;
   padding: 0.55rem 0.5rem;
-  border-radius: 0.7rem;
-  border: 1px solid rgb(255 255 255 / 18%);
-  background: rgb(0 0 0 / 60%);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 25%);
 }
 
 .game-zoom-scroll__label {
@@ -109,7 +105,7 @@ body {
   margin: 0;
   transform: rotate(-90deg);
   transform-origin: center;
-  accent-color: #ff5d40;
+  accent-color: #222;
   cursor: pointer;
 }
 
@@ -122,7 +118,7 @@ body {
 .game-zoom-scroll__input::-webkit-slider-runnable-track {
   height: 0.35rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff6d52, #ffb59d);
+  background: linear-gradient(90deg, #b9b9b9, #ededed);
 }
 
 .game-zoom-scroll__input::-webkit-slider-thumb {
@@ -130,24 +126,24 @@ body {
   width: 0.88rem;
   height: 0.88rem;
   margin-top: -0.265rem;
-  border: 2px solid #ffffff;
+  border: 2px solid #1f1f1f;
   border-radius: 50%;
-  background: #ff4e32;
+  background: #e8e8e8;
 }
 
 .game-zoom-scroll__input::-moz-range-track {
   height: 0.35rem;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff6d52, #ffb59d);
+  background: linear-gradient(90deg, #b9b9b9, #ededed);
 }
 
 .game-zoom-scroll__input::-moz-range-thumb {
   width: 0.88rem;
   height: 0.88rem;
-  border: 2px solid #ffffff;
+  border: 2px solid #1f1f1f;
   border-radius: 50%;
-  background: #ff4e32;
+  background: #e8e8e8;
 }
 
 .setup-overlay {
@@ -191,6 +187,19 @@ body {
 .setup-panel--hidden {
   visibility: hidden;
   pointer-events: none;
+}
+
+.setup-panel--hud {
+  width: auto;
+  gap: 0.35rem;
+  padding: 0.72rem 0.86rem;
+}
+
+.setup-panel--win {
+  width: min(92vw, 780px);
+  gap: 1rem;
+  padding: 1.8rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
 }
 
 .setup-grid {
@@ -303,6 +312,12 @@ body {
   transform: translateY(-2px);
 }
 
+.setup-start-button--win {
+  width: 100%;
+  min-height: 5.2rem;
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+}
+
 .race-hud {
   position: absolute;
   top: 1rem;
@@ -313,10 +328,6 @@ body {
   gap: 0.35rem;
   min-width: 13.4rem;
   padding: 0.72rem 0.86rem;
-  border-radius: 0.74rem;
-  border: 1px solid rgb(255 255 255 / 16%);
-  background: rgb(0 0 0 / 60%);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 24%);
   font-size: 0.82rem;
   letter-spacing: 0.02em;
 }
@@ -329,13 +340,13 @@ body {
 }
 
 .race-hud__row span {
-  opacity: 0.8;
+  opacity: 0.84;
   text-transform: uppercase;
 }
 
 .race-hud__row strong {
   font-size: 0.92rem;
-  color: #ff9d8d;
+  color: #202020;
 }
 
 .win-overlay {
@@ -345,31 +356,27 @@ body {
   display: grid;
   place-content: center;
   padding: 1rem;
-  background: rgb(5 8 16 / 78%);
+  background: rgb(18 16 14 / 26%);
 }
 
 .win-panel {
-  width: min(92vw, 560px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 1.8rem;
-  border-radius: 1rem;
-  border: 1px solid rgb(255 255 255 / 20%);
-  background: rgb(10 14 28 / 88%);
 }
 
 .win-panel h2 {
   margin: 0;
   font-size: clamp(1.9rem, 4vw, 2.9rem);
   letter-spacing: 0.02em;
+  color: #151515;
 }
 
 .win-panel p {
   margin: 0;
   font-size: 1rem;
-  opacity: 0.9;
+  opacity: 0.86;
+  color: rgb(23 23 23 / 82%);
 }
 
 .win-stats {
@@ -378,8 +385,8 @@ body {
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.8rem;
-  border-radius: 0.75rem;
-  background: rgb(255 255 255 / 7%);
+  border: 2px solid rgb(23 23 23 / 22%);
+  background: linear-gradient(160deg, #d3d3d3, #f0f0f0);
 }
 
 .win-stats__row {
@@ -393,7 +400,7 @@ body {
 }
 
 .win-stats__row strong {
-  color: #ffc5bc;
+  color: #202020;
 }
 
 .win-actions {
@@ -405,17 +412,11 @@ body {
 .win-action-primary,
 .win-action-secondary {
   flex: 1;
-  min-height: 2.9rem;
-  border-radius: 0.7rem;
-  font-size: 0.95rem;
-  font-weight: 600;
   cursor: pointer;
 }
 
 .win-action-primary {
-  border: 0;
-  color: #fff;
-  background: #ff5f43;
+  width: 100%;
 }
 
 .win-action-secondary {
