@@ -9,13 +9,10 @@ import { CarFbx } from "./CarFbx";
 import { FixedCamera } from "./FixedCamera";
 import { TrackFigureEight } from "./TrackFigureEight";
 import {
-  FINISH_GATE_MAX_Y,
+  FINISH_GATE_HEIGHT_TOLERANCE,
   FINISH_GATE_MIN_LAP_DISTANCE,
   FINISH_GATE_MIN_LAP_INTERVAL_MS,
-  FINISH_GATE_MIN_Y,
   FINISH_GATE_TRIGGER_RADIUS,
-  RACE_SPAWN_POSITION,
-  RACE_SPAWN_YAW,
 } from "./raceConfig";
 
 export type RacePhase = "setup" | "racing" | "finished";
@@ -26,14 +23,6 @@ export type LapProgressPayload = {
   totalTimeMs: number;
 };
 
-const UP = new Vector3(0, 1, 0);
-const GATE_FORWARD = new Vector3(
-  Math.sin(RACE_SPAWN_YAW),
-  0,
-  Math.cos(RACE_SPAWN_YAW),
-).normalize();
-const GATE_SIDE = new Vector3().crossVectors(UP, GATE_FORWARD).normalize();
-const gateOffset = new Vector3();
 const frameDelta = new Vector3();
 
 function isBodyUsable(body: RapierRigidBody | null): body is RapierRigidBody {
@@ -78,6 +67,8 @@ function RaceTracker({
   const raceStartMsRef = useRef<number | null>(null);
   const lastLapTimestampRef = useRef<number | null>(null);
   const wasInFinishZoneRef = useRef(false);
+  const finishCenterRef = useRef<Vector3 | null>(null);
+  const hasLeftFinishZoneRef = useRef(false);
   const distanceSinceLapRef = useRef(0);
   const previousPositionRef = useRef<Vector3 | null>(null);
   const raceFinishedRef = useRef(false);
@@ -87,6 +78,8 @@ function RaceTracker({
     raceStartMsRef.current = null;
     lastLapTimestampRef.current = null;
     wasInFinishZoneRef.current = false;
+    finishCenterRef.current = null;
+    hasLeftFinishZoneRef.current = false;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -103,6 +96,8 @@ function RaceTracker({
     raceStartMsRef.current = now;
     lastLapTimestampRef.current = now;
     wasInFinishZoneRef.current = false;
+    finishCenterRef.current = null;
+    hasLeftFinishZoneRef.current = false;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -125,11 +120,22 @@ function RaceTracker({
       return;
     }
 
-    gateOffset.set(
-      translation.x - RACE_SPAWN_POSITION[0],
-      translation.y - RACE_SPAWN_POSITION[1],
-      translation.z - RACE_SPAWN_POSITION[2],
-    );
+    if (finishCenterRef.current === null) {
+      finishCenterRef.current = new Vector3(
+        translation.x,
+        translation.y,
+        translation.z,
+      );
+      previousPositionRef.current = new Vector3(
+        translation.x,
+        translation.y,
+        translation.z,
+      );
+      wasInFinishZoneRef.current = true;
+      return;
+    }
+
+    const finishCenter = finishCenterRef.current;
 
     const previousPosition = previousPositionRef.current;
     if (previousPosition !== null) {
@@ -150,19 +156,27 @@ function RaceTracker({
       previousPosition.set(translation.x, translation.y, translation.z);
     }
 
-    const forwardOffset = gateOffset.dot(GATE_FORWARD);
-    const sideOffset = gateOffset.dot(GATE_SIDE);
-    const radialOffset = Math.hypot(forwardOffset, sideOffset);
+    const radialOffset = Math.hypot(
+      translation.x - finishCenter.x,
+      translation.z - finishCenter.z,
+    );
 
     const inHeightBand =
-      translation.y >= FINISH_GATE_MIN_Y &&
-      translation.y <= FINISH_GATE_MAX_Y;
+      Math.abs(translation.y - finishCenter.y) <= FINISH_GATE_HEIGHT_TOLERANCE;
     const inFinishZone = radialOffset <= FINISH_GATE_TRIGGER_RADIUS && inHeightBand;
+
+    if (!hasLeftFinishZoneRef.current && wasInFinishZoneRef.current && !inFinishZone) {
+      hasLeftFinishZoneRef.current = true;
+    }
 
     const enteredFinishZone = inFinishZone && !wasInFinishZoneRef.current;
     const now = performance.now();
 
-    if (enteredFinishZone && distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE) {
+    if (
+      enteredFinishZone &&
+      hasLeftFinishZoneRef.current &&
+      distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE
+    ) {
       const lastLapTimestamp = lastLapTimestampRef.current ?? now;
       const cooldownPassed =
         now - lastLapTimestamp >= FINISH_GATE_MIN_LAP_INTERVAL_MS;
@@ -175,6 +189,7 @@ function RaceTracker({
 
         lastLapTimestampRef.current = now;
         distanceSinceLapRef.current = 0;
+        hasLeftFinishZoneRef.current = false;
 
         onLapProgress?.({
           completedLaps: completedLapsRef.current,
