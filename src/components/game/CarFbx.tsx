@@ -219,20 +219,21 @@ export function CarFbx({
         colliders={false}
         position={spawn.position}
         rotation={[0, spawn.yaw, 0]}
-        mass={1.9}
+        mass={2.1}
         friction={1.05}
-        restitution={0.02}
+        restitution={0.01}
         linearDamping={0.8}
-        angularDamping={3.4}
+        angularDamping={4.8}
+        additionalSolverIterations={4}
         ccd
         canSleep={false}
         enabledRotations={[true, true, true]}
       >
         <CuboidCollider
-          args={[0.9, 0.33, 1.7]}
-          position={[0, 0.33, 0]}
-          friction={1.2}
-          restitution={0.01}
+          args={[0.92, 0.3, 1.68]}
+          position={[0, 0.3, 0]}
+          friction={1.25}
+          restitution={0}
         />
 
         {assetFormat === "glb" ? (

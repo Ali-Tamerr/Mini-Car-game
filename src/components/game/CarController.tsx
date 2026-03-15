@@ -39,15 +39,21 @@ const STRAIGHT_ASSIST_MIN_SPEED = 1.3;
 const STRAIGHT_ASSIST_GAIN = 5.8;
 const STRAIGHT_ASSIST_MAX_YAW_SPEED = 2.1;
 const STRAIGHT_ASSIST_ANGULAR_DAMP = 0.62;
-const PITCH_RATE_DAMP = 0.45;
-const MAX_NOSE_DOWN_ANGLE = 0.16;
-const MAX_NOSE_UP_ANGLE = 0.24;
-const PITCH_RETURN_GAIN = 14;
-const MAX_PITCH_RATE = 2.4;
-const ROLL_RATE_DAMP = 0.38;
-const MAX_ROLL_ANGLE = 0.12;
-const ROLL_RETURN_GAIN = 14;
-const MAX_ROLL_RATE = 2.2;
+const PITCH_RATE_DAMP = 0.34;
+const MAX_NOSE_DOWN_ANGLE = 0.44;
+const MAX_NOSE_UP_ANGLE = 0.34;
+const PITCH_RETURN_GAIN = 9.5;
+const MAX_PITCH_RATE = 2;
+const ROLL_RATE_DAMP = 0.32;
+const MAX_ROLL_ANGLE = 0.2;
+const ROLL_RETURN_GAIN = 12;
+const MAX_ROLL_RATE = 1.75;
+const SLOPE_PITCH_FADE_START = 0.12;
+const SLOPE_PITCH_FADE_END = 0.5;
+const MIN_SLOPE_PITCH_GAIN = 0.25;
+const DOWNFORCE_MIN_SPEED = 2.4;
+const DOWNFORCE_GAIN = 2.2;
+const DOWNFORCE_MAX = 24;
 const SPAWN_GUARD_SECONDS = 12;
 const SPAWN_GUARD_MIN_Y = -0.25;
 const SPAWN_GUARD_RADIUS = 16;
@@ -80,6 +86,15 @@ function isArrowCode(code: string): boolean {
 
 function normalizeAngle(value: number): number {
   return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function inverseLerpClamped(value: number, min: number, max: number): number {
+  if (max <= min) {
+    return 1;
+  }
+
+  const normalized = (value - min) / (max - min);
+  return Math.max(0, Math.min(1, normalized));
 }
 
 export function CarController({
@@ -259,6 +274,14 @@ export function CarController({
     const sideSpeed = velocity.x * sideDir.x + velocity.z * sideDir.z;
     const headingYaw = Math.atan2(forwardDir.x, forwardDir.z);
 
+    if (planarSpeed > DOWNFORCE_MIN_SPEED && Math.abs(velocity.y) < 6) {
+      const downforceStrength = Math.min(
+        DOWNFORCE_MAX,
+        (planarSpeed - DOWNFORCE_MIN_SPEED) * DOWNFORCE_GAIN,
+      );
+      body.applyImpulse({ x: 0, y: -downforceStrength * delta, z: 0 }, true);
+    }
+
     let throttle = 0;
     if (isForward) throttle += 1;
     if (isBackward) throttle -= 1;
@@ -308,6 +331,14 @@ export function CarController({
     const localRollRate = localAngularVelocityVec.z;
     const pitchAngle = Math.asin(Math.max(-1, Math.min(1, driveDir.y)));
     const rollAngle = Math.asin(Math.max(-1, Math.min(1, rightDir.y)));
+    const slopeAbs = Math.abs(driveDir.y);
+    const slopeFade = inverseLerpClamped(
+      slopeAbs,
+      SLOPE_PITCH_FADE_START,
+      SLOPE_PITCH_FADE_END,
+    );
+    const slopePitchGain =
+      1 - slopeFade * (1 - MIN_SLOPE_PITCH_GAIN);
 
     let pitchCorrection = 0;
     if (pitchAngle < -MAX_NOSE_DOWN_ANGLE) {
@@ -317,6 +348,7 @@ export function CarController({
       // Positive x angular velocity lowers the nose back toward neutral.
       pitchCorrection = (pitchAngle - MAX_NOSE_UP_ANGLE) * PITCH_RETURN_GAIN;
     }
+    pitchCorrection *= slopePitchGain;
 
     const stabilizedPitchRate = Math.max(
       -MAX_PITCH_RATE,

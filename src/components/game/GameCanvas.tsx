@@ -13,10 +13,10 @@ import {
   FINISH_GATE_ARM_SIDE_DISTANCE,
   FINISH_GATE_HALF_WIDTH,
   FINISH_GATE_HEIGHT_TOLERANCE,
-  FINISH_GATE_LINE_CROSS_EPSILON,
   FINISH_GATE_MIN_DIRECTION_SPEED,
   FINISH_GATE_MIN_LAP_DISTANCE,
   FINISH_GATE_MIN_LAP_INTERVAL_MS,
+  FINISH_GATE_TRIGGER_DEPTH,
   FINISH_LINE_POSITION,
   FINISH_LINE_VISUAL_THICKNESS,
   FINISH_LINE_VISUAL_WIDTH,
@@ -36,7 +36,8 @@ const UP = new Vector3(0, 1, 0);
 const frameDelta = new Vector3();
 const gateOffset = new Vector3();
 const planarVelocity = new Vector3();
-const MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE = 2.2;
+const MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE = 4.2;
+const FINISH_DECK_LOCK_TOLERANCE = 1.05;
 const FINISH_CENTER = new Vector3(
   FINISH_LINE_POSITION[0],
   FINISH_LINE_POSITION[1],
@@ -92,6 +93,10 @@ function RaceTracker({
   const lastLapTimestampRef = useRef<number | null>(null);
   const lapArmedRef = useRef(false);
   const previousForwardOffsetRef = useRef<number | null>(null);
+  const previousSideOffsetRef = useRef<number | null>(null);
+  const previousHeightOffsetRef = useRef<number | null>(null);
+  const lockedFinishHeightOffsetRef = useRef<number | null>(null);
+  const lockedCrossingDirectionRef = useRef<number | null>(null);
   const distanceSinceLapRef = useRef(0);
   const previousPositionRef = useRef<Vector3 | null>(null);
   const raceFinishedRef = useRef(false);
@@ -102,6 +107,10 @@ function RaceTracker({
     lastLapTimestampRef.current = null;
     lapArmedRef.current = false;
     previousForwardOffsetRef.current = null;
+    previousSideOffsetRef.current = null;
+    previousHeightOffsetRef.current = null;
+    lockedFinishHeightOffsetRef.current = null;
+    lockedCrossingDirectionRef.current = null;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -119,6 +128,10 @@ function RaceTracker({
     lastLapTimestampRef.current = now;
     lapArmedRef.current = false;
     previousForwardOffsetRef.current = null;
+    previousSideOffsetRef.current = null;
+    previousHeightOffsetRef.current = null;
+    lockedFinishHeightOffsetRef.current = null;
+    lockedCrossingDirectionRef.current = null;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -167,15 +180,15 @@ function RaceTracker({
     );
     const forwardOffset = gateOffset.dot(FINISH_FORWARD);
     const sideOffset = gateOffset.dot(FINISH_SIDE);
+    const heightOffset = translation.y - FINISH_CENTER.y;
     const radialOffset = Math.hypot(forwardOffset, sideOffset);
 
     const effectiveHeightTolerance = Math.min(
       FINISH_GATE_HEIGHT_TOLERANCE,
       MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE,
     );
-    const inHeightBand =
-      Math.abs(translation.y - FINISH_CENTER.y) <= effectiveHeightTolerance;
-    const withinFinishLane = Math.abs(sideOffset) <= FINISH_GATE_HALF_WIDTH;
+    const laneTolerance =
+      FINISH_GATE_HALF_WIDTH + Math.max(0.14, FINISH_GATE_TRIGGER_DEPTH * 0.08);
 
     const armDistanceThreshold = Math.max(
       FINISH_GATE_ARM_FORWARD_DISTANCE,
@@ -183,23 +196,70 @@ function RaceTracker({
     );
     const farEnoughToArm =
       radialOffset >= armDistanceThreshold ||
-      distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE * 0.4;
+      distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE * 0.3;
     if (!lapArmedRef.current && farEnoughToArm) {
       lapArmedRef.current = true;
     }
 
-    let crossedFinishLine = false;
     const previousForwardOffset = previousForwardOffsetRef.current;
-    if (previousForwardOffset !== null) {
-      crossedFinishLine =
-        (previousForwardOffset <= -FINISH_GATE_LINE_CROSS_EPSILON &&
-          forwardOffset >= FINISH_GATE_LINE_CROSS_EPSILON) ||
-        (previousForwardOffset >= FINISH_GATE_LINE_CROSS_EPSILON &&
-          forwardOffset <= -FINISH_GATE_LINE_CROSS_EPSILON);
-    }
-    previousForwardOffsetRef.current = forwardOffset;
+    const previousSideOffset = previousSideOffsetRef.current;
+    const previousHeightOffset = previousHeightOffsetRef.current;
 
-    if (!crossedFinishLine || !lapArmedRef.current || !withinFinishLane || !inHeightBand) {
+    let crossingT: number | null = null;
+    let crossingDirection: number | null = null;
+    let crossedFinishLine = false;
+    if (previousForwardOffset !== null) {
+      const deltaForward = forwardOffset - previousForwardOffset;
+      if (Math.abs(deltaForward) > 1e-5) {
+        const candidateT = -previousForwardOffset / deltaForward;
+        const crossesSegment = candidateT >= 0 && candidateT <= 1;
+        crossedFinishLine = crossesSegment;
+        if (crossedFinishLine) {
+          crossingT = candidateT;
+          crossingDirection = deltaForward > 0 ? 1 : -1;
+        }
+      }
+    }
+
+    let sideAtCross = sideOffset;
+    let heightAtCross = heightOffset;
+    if (
+      crossingT !== null &&
+      previousSideOffset !== null &&
+      previousHeightOffset !== null
+    ) {
+      sideAtCross = previousSideOffset + (sideOffset - previousSideOffset) * crossingT;
+      heightAtCross =
+        previousHeightOffset + (heightOffset - previousHeightOffset) * crossingT;
+    }
+
+    const inGeneralHeightBand =
+      Math.abs(heightAtCross) <= effectiveHeightTolerance;
+    const lockedFinishHeightOffset = lockedFinishHeightOffsetRef.current;
+    const inLockedHeightBand =
+      lockedFinishHeightOffset === null ||
+      Math.abs(heightAtCross - lockedFinishHeightOffset) <=
+        FINISH_DECK_LOCK_TOLERANCE;
+    const inHeightBand = inGeneralHeightBand && inLockedHeightBand;
+    const withinFinishLane = Math.abs(sideAtCross) <= laneTolerance;
+    const crossingDirectionAvailable = crossingDirection !== null;
+    const lockedCrossingDirection = lockedCrossingDirectionRef.current;
+    const crossingDirectionMatchesLock =
+      lockedCrossingDirection === null ||
+      crossingDirection === lockedCrossingDirection;
+
+    previousForwardOffsetRef.current = forwardOffset;
+    previousSideOffsetRef.current = sideOffset;
+    previousHeightOffsetRef.current = heightOffset;
+
+    if (
+      !crossedFinishLine ||
+      !crossingDirectionAvailable ||
+      !crossingDirectionMatchesLock ||
+      !lapArmedRef.current ||
+      !withinFinishLane ||
+      !inHeightBand
+    ) {
       return;
     }
 
@@ -210,8 +270,15 @@ function RaceTracker({
       return;
     }
     planarVelocity.set(velocity.x, 0, velocity.z);
-    const crossingSpeed = Math.abs(planarVelocity.dot(FINISH_FORWARD));
-    if (crossingSpeed < FINISH_GATE_MIN_DIRECTION_SPEED * 0.25) {
+    const velocityAlongFinishForward = planarVelocity.dot(FINISH_FORWARD);
+    const crossingSpeed = Math.abs(velocityAlongFinishForward);
+    const minimumDirectionSpeed = Math.max(
+      0.18,
+      FINISH_GATE_MIN_DIRECTION_SPEED * 0.15,
+    );
+    const velocityDirection = velocityAlongFinishForward >= 0 ? 1 : -1;
+    const directionAgreesWithCrossing = velocityDirection === crossingDirection;
+    if (crossingSpeed < minimumDirectionSpeed || !directionAgreesWithCrossing) {
       return;
     }
 
@@ -235,6 +302,12 @@ function RaceTracker({
     lastLapTimestampRef.current = now;
     distanceSinceLapRef.current = 0;
     lapArmedRef.current = false;
+    if (lockedFinishHeightOffsetRef.current === null) {
+      lockedFinishHeightOffsetRef.current = heightAtCross;
+    }
+    if (lockedCrossingDirectionRef.current === null) {
+      lockedCrossingDirectionRef.current = crossingDirection;
+    }
 
     onLapProgress?.({
       completedLaps: completedLapsRef.current,
@@ -257,8 +330,8 @@ function FinishLineMarker() {
 
   return (
     <group position={FINISH_LINE_POSITION} rotation={[0, FINISH_LINE_YAW, 0]}>
-      <mesh position={[0, 0.08, 0]} renderOrder={10}>
-        <boxGeometry args={[FINISH_LINE_VISUAL_WIDTH, 0.035, FINISH_LINE_VISUAL_THICKNESS]} />
+      <mesh position={[0, 1.08, 0]} renderOrder={10}>
+        <boxGeometry args={[FINISH_LINE_VISUAL_WIDTH, 1.035, FINISH_LINE_VISUAL_THICKNESS]} />
         <meshStandardMaterial
           color="#2ef2ff"
           emissive="#11414a"
@@ -267,8 +340,8 @@ function FinishLineMarker() {
         />
       </mesh>
 
-      <mesh position={[-FINISH_GATE_HALF_WIDTH, 0.14, 0]} renderOrder={10}>
-        <boxGeometry args={[0.22, 0.14, 0.22]} />
+      <mesh position={[-FINISH_GATE_HALF_WIDTH, 1.14, 0]} renderOrder={10}>
+        <boxGeometry args={[0.22, 1.14, 0.22]} />
         <meshStandardMaterial
           color="#ff6f3d"
           emissive="#462010"
@@ -277,8 +350,8 @@ function FinishLineMarker() {
         />
       </mesh>
 
-      <mesh position={[FINISH_GATE_HALF_WIDTH, 0.14, 0]} renderOrder={10}>
-        <boxGeometry args={[0.22, 0.14, 0.22]} />
+      <mesh position={[FINISH_GATE_HALF_WIDTH, 1.14, 0]} renderOrder={10}>
+        <boxGeometry args={[0.22, 1.14, 0.22]} />
         <meshStandardMaterial
           color="#ff6f3d"
           emissive="#462010"
