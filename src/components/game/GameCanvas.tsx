@@ -9,10 +9,19 @@ import { CarFbx } from "./CarFbx";
 import { FixedCamera } from "./FixedCamera";
 import { TrackFigureEight } from "./TrackFigureEight";
 import {
+  FINISH_GATE_ARM_FORWARD_DISTANCE,
+  FINISH_GATE_ARM_SIDE_DISTANCE,
+  FINISH_GATE_HALF_WIDTH,
   FINISH_GATE_HEIGHT_TOLERANCE,
+  FINISH_GATE_LINE_CROSS_EPSILON,
+  FINISH_GATE_MIN_DIRECTION_SPEED,
   FINISH_GATE_MIN_LAP_DISTANCE,
   FINISH_GATE_MIN_LAP_INTERVAL_MS,
-  FINISH_GATE_TRIGGER_RADIUS,
+  FINISH_LINE_POSITION,
+  FINISH_LINE_VISUAL_THICKNESS,
+  FINISH_LINE_VISUAL_WIDTH,
+  FINISH_LINE_YAW,
+  SHOW_FINISH_LINE_MARKER,
 } from "./raceConfig";
 
 export type RacePhase = "setup" | "racing" | "finished";
@@ -23,7 +32,21 @@ export type LapProgressPayload = {
   totalTimeMs: number;
 };
 
+const UP = new Vector3(0, 1, 0);
 const frameDelta = new Vector3();
+const gateOffset = new Vector3();
+const planarVelocity = new Vector3();
+const FINISH_CENTER = new Vector3(
+  FINISH_LINE_POSITION[0],
+  FINISH_LINE_POSITION[1],
+  FINISH_LINE_POSITION[2],
+);
+const FINISH_FORWARD = new Vector3(
+  Math.sin(FINISH_LINE_YAW),
+  0,
+  Math.cos(FINISH_LINE_YAW),
+).normalize();
+const FINISH_SIDE = new Vector3().crossVectors(UP, FINISH_FORWARD).normalize();
 
 function isBodyUsable(body: RapierRigidBody | null): body is RapierRigidBody {
   if (!body) {
@@ -66,9 +89,8 @@ function RaceTracker({
   const completedLapsRef = useRef(0);
   const raceStartMsRef = useRef<number | null>(null);
   const lastLapTimestampRef = useRef<number | null>(null);
-  const wasInFinishZoneRef = useRef(false);
-  const finishCenterRef = useRef<Vector3 | null>(null);
-  const hasLeftFinishZoneRef = useRef(false);
+  const lapArmedRef = useRef(false);
+  const previousForwardOffsetRef = useRef<number | null>(null);
   const distanceSinceLapRef = useRef(0);
   const previousPositionRef = useRef<Vector3 | null>(null);
   const raceFinishedRef = useRef(false);
@@ -77,9 +99,8 @@ function RaceTracker({
     completedLapsRef.current = 0;
     raceStartMsRef.current = null;
     lastLapTimestampRef.current = null;
-    wasInFinishZoneRef.current = false;
-    finishCenterRef.current = null;
-    hasLeftFinishZoneRef.current = false;
+    lapArmedRef.current = false;
+    previousForwardOffsetRef.current = null;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -95,9 +116,8 @@ function RaceTracker({
     completedLapsRef.current = 0;
     raceStartMsRef.current = now;
     lastLapTimestampRef.current = now;
-    wasInFinishZoneRef.current = false;
-    finishCenterRef.current = null;
-    hasLeftFinishZoneRef.current = false;
+    lapArmedRef.current = false;
+    previousForwardOffsetRef.current = null;
     distanceSinceLapRef.current = 0;
     previousPositionRef.current = null;
     raceFinishedRef.current = false;
@@ -120,23 +140,6 @@ function RaceTracker({
       return;
     }
 
-    if (finishCenterRef.current === null) {
-      finishCenterRef.current = new Vector3(
-        translation.x,
-        translation.y,
-        translation.z,
-      );
-      previousPositionRef.current = new Vector3(
-        translation.x,
-        translation.y,
-        translation.z,
-      );
-      wasInFinishZoneRef.current = true;
-      return;
-    }
-
-    const finishCenter = finishCenterRef.current;
-
     const previousPosition = previousPositionRef.current;
     if (previousPosition !== null) {
       frameDelta.set(
@@ -156,57 +159,125 @@ function RaceTracker({
       previousPosition.set(translation.x, translation.y, translation.z);
     }
 
-    const radialOffset = Math.hypot(
-      translation.x - finishCenter.x,
-      translation.z - finishCenter.z,
+    gateOffset.set(
+      translation.x - FINISH_CENTER.x,
+      translation.y - FINISH_CENTER.y,
+      translation.z - FINISH_CENTER.z,
     );
+    const forwardOffset = gateOffset.dot(FINISH_FORWARD);
+    const sideOffset = gateOffset.dot(FINISH_SIDE);
 
     const inHeightBand =
-      Math.abs(translation.y - finishCenter.y) <= FINISH_GATE_HEIGHT_TOLERANCE;
-    const inFinishZone = radialOffset <= FINISH_GATE_TRIGGER_RADIUS && inHeightBand;
+      Math.abs(translation.y - FINISH_CENTER.y) <= FINISH_GATE_HEIGHT_TOLERANCE;
+    const withinFinishLane = Math.abs(sideOffset) <= FINISH_GATE_HALF_WIDTH;
 
-    if (!hasLeftFinishZoneRef.current && wasInFinishZoneRef.current && !inFinishZone) {
-      hasLeftFinishZoneRef.current = true;
+    const farEnoughToArm =
+      Math.abs(forwardOffset) >= FINISH_GATE_ARM_FORWARD_DISTANCE ||
+      Math.abs(sideOffset) >= FINISH_GATE_ARM_SIDE_DISTANCE;
+    if (!lapArmedRef.current && farEnoughToArm) {
+      lapArmedRef.current = true;
     }
 
-    const enteredFinishZone = inFinishZone && !wasInFinishZoneRef.current;
+    let crossedFinishLine = false;
+    const previousForwardOffset = previousForwardOffsetRef.current;
+    if (previousForwardOffset !== null) {
+      crossedFinishLine =
+        (previousForwardOffset <= -FINISH_GATE_LINE_CROSS_EPSILON &&
+          forwardOffset >= FINISH_GATE_LINE_CROSS_EPSILON) ||
+        (previousForwardOffset >= FINISH_GATE_LINE_CROSS_EPSILON &&
+          forwardOffset <= -FINISH_GATE_LINE_CROSS_EPSILON);
+    }
+    previousForwardOffsetRef.current = forwardOffset;
+
+    if (!crossedFinishLine || !lapArmedRef.current || !withinFinishLane || !inHeightBand) {
+      return;
+    }
+
+    let velocity;
+    try {
+      velocity = body.linvel();
+    } catch {
+      return;
+    }
+    planarVelocity.set(velocity.x, 0, velocity.z);
+    const crossingSpeed = Math.abs(planarVelocity.dot(FINISH_FORWARD));
+    if (crossingSpeed < FINISH_GATE_MIN_DIRECTION_SPEED * 0.25) {
+      return;
+    }
+
     const now = performance.now();
+    const lastLapTimestamp = lastLapTimestampRef.current ?? now;
+    const cooldownPassed =
+      now - lastLapTimestamp >= FINISH_GATE_MIN_LAP_INTERVAL_MS;
 
     if (
-      enteredFinishZone &&
-      hasLeftFinishZoneRef.current &&
-      distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE
+      !cooldownPassed ||
+      distanceSinceLapRef.current < FINISH_GATE_MIN_LAP_DISTANCE
     ) {
-      const lastLapTimestamp = lastLapTimestampRef.current ?? now;
-      const cooldownPassed =
-        now - lastLapTimestamp >= FINISH_GATE_MIN_LAP_INTERVAL_MS;
-
-      if (cooldownPassed) {
-        completedLapsRef.current += 1;
-
-        const lapTimeMs = now - lastLapTimestamp;
-        const totalTimeMs = now - (raceStartMsRef.current ?? now);
-
-        lastLapTimestampRef.current = now;
-        distanceSinceLapRef.current = 0;
-        hasLeftFinishZoneRef.current = false;
-
-        onLapProgress?.({
-          completedLaps: completedLapsRef.current,
-          lapTimeMs,
-          totalTimeMs,
-        });
-
-        if (completedLapsRef.current >= targetLaps) {
-          raceFinishedRef.current = true;
-        }
-      }
+      return;
     }
 
-    wasInFinishZoneRef.current = inFinishZone;
+    completedLapsRef.current += 1;
+
+    const lapTimeMs = now - lastLapTimestamp;
+    const totalTimeMs = now - (raceStartMsRef.current ?? now);
+
+    lastLapTimestampRef.current = now;
+    distanceSinceLapRef.current = 0;
+    lapArmedRef.current = false;
+
+    onLapProgress?.({
+      completedLaps: completedLapsRef.current,
+      lapTimeMs,
+      totalTimeMs,
+    });
+
+    if (completedLapsRef.current >= targetLaps) {
+      raceFinishedRef.current = true;
+    }
   });
 
   return null;
+}
+
+function FinishLineMarker() {
+  if (!SHOW_FINISH_LINE_MARKER) {
+    return null;
+  }
+
+  return (
+    <group position={FINISH_LINE_POSITION} rotation={[0, FINISH_LINE_YAW, 0]}>
+      <mesh position={[0, 0.08, 0]} renderOrder={10}>
+        <boxGeometry args={[FINISH_LINE_VISUAL_WIDTH, 0.035, FINISH_LINE_VISUAL_THICKNESS]} />
+        <meshStandardMaterial
+          color="#2ef2ff"
+          emissive="#11414a"
+          emissiveIntensity={0.8}
+          toneMapped={false}
+        />
+      </mesh>
+
+      <mesh position={[-FINISH_GATE_HALF_WIDTH, 0.14, 0]} renderOrder={10}>
+        <boxGeometry args={[0.22, 0.14, 0.22]} />
+        <meshStandardMaterial
+          color="#ff6f3d"
+          emissive="#462010"
+          emissiveIntensity={0.7}
+          toneMapped={false}
+        />
+      </mesh>
+
+      <mesh position={[FINISH_GATE_HALF_WIDTH, 0.14, 0]} renderOrder={10}>
+        <boxGeometry args={[0.22, 0.14, 0.22]} />
+        <meshStandardMaterial
+          color="#ff6f3d"
+          emissive="#462010"
+          emissiveIntensity={0.7}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
+  );
 }
 
 export function GameCanvas({
@@ -243,6 +314,8 @@ export function GameCanvas({
       />
 
       <Environment preset="sunset" background={false} />
+
+      <FinishLineMarker />
 
       <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
         <TrackFigureEight onLoaded={onTrackLoaded} />

@@ -38,7 +38,7 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
   const [assetMissing, setAssetMissing] = useState(false);
   const [cameraZoom, setCameraZoom] = useState(0.9);
   const [racePhase, setRacePhase] = useState<RacePhase>("setup");
-  const [raceSessionId, setRaceSessionId] = useState(0);
+  const [raceSessionId] = useState(0);
   const [targetLaps] = useState(() => clampLaps(initialLaps));
   const [completedLaps, setCompletedLaps] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -83,25 +83,6 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
       window.clearInterval(intervalId);
     };
   }, [racePhase]);
-
-  const restartRace = () => {
-    raceStartMsRef.current = null;
-    carLoadedRef.current = false;
-    trackLoadedRef.current = false;
-    assetMissingRef.current = false;
-    racePhaseRef.current = "setup";
-
-    setRacePhase("setup");
-    setElapsedMs(0);
-    setCompletedLaps(0);
-    setLastLapMs(null);
-    setBestLapMs(null);
-    setFinishTimeMs(null);
-    setIsCarLoaded(false);
-    setIsTrackLoaded(false);
-    setAssetMissing(false);
-    setRaceSessionId((previous) => previous + 1);
-  };
 
   const handleLapProgress = (payload: LapProgressPayload) => {
     if (racePhase !== "racing") {
@@ -228,18 +209,11 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
               <button
                 type="button"
                 className="win-action-primary"
-                onClick={restartRace}
-              >
-                Race again
-              </button>
-              <button
-                type="button"
-                className="win-action-secondary"
                 onClick={() => {
                   router.push("/");
                 }}
               >
-                Back to setup
+                Race again
               </button>
             </div>
           </div>

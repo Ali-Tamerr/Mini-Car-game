@@ -9,7 +9,7 @@ const MAX_LAPS = 12;
 
 export default function SetupExperience() {
   const router = useRouter();
-  const [targetLaps, setTargetLaps] = useState(4);
+  const [targetLaps, setTargetLaps] = useState(1);
   const [isCarReady, setIsCarReady] = useState(false);
   const [assetMissing, setAssetMissing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);

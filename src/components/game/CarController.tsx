@@ -14,17 +14,24 @@ type CarControllerProps = {
 
 const forwardDir = new Vector3();
 const driveDir = new Vector3();
+const rightDir = new Vector3();
 const sideDir = new Vector3();
 const planarVelocity = new Vector3();
 const rotationQuat = new Quaternion();
+const inverseRotationQuat = new Quaternion();
 const resetQuat = new Quaternion();
+const worldAngularVelocityVec = new Vector3();
+const localAngularVelocityVec = new Vector3();
+const desiredAngularVelocityVec = new Vector3();
+const pitchAngularVelocityVec = new Vector3();
+const rollAngularVelocityVec = new Vector3();
 const UP = new Vector3(0, 1, 0);
 
 const MAX_SPEED = 10;
 const ENGINE_FORCE = 118;
 const REVERSE_FORCE = 92;
-const TURN_RATE = 2.6;
-const LATERAL_GRIP = 5.4;
+const TURN_RATE = 1.6;
+const LATERAL_GRIP = 4.4;
 const STRAIGHT_LINE_GRIP = 10.8;
 const COAST_DRAG = 1.1;
 const IDLE_YAW_DAMP = 0.86;
@@ -37,6 +44,10 @@ const MAX_NOSE_DOWN_ANGLE = 0.16;
 const MAX_NOSE_UP_ANGLE = 0.24;
 const PITCH_RETURN_GAIN = 14;
 const MAX_PITCH_RATE = 2.4;
+const ROLL_RATE_DAMP = 0.38;
+const MAX_ROLL_ANGLE = 0.12;
+const ROLL_RETURN_GAIN = 14;
+const MAX_ROLL_RATE = 2.2;
 const SPAWN_GUARD_SECONDS = 12;
 const SPAWN_GUARD_MIN_Y = -0.25;
 const SPAWN_GUARD_RADIUS = 16;
@@ -201,7 +212,7 @@ export function CarController({
         true,
       );
       body.setAngvel(
-        { x: angularVelocity.x * 0.4, y: angularVelocity.y * 0.4, z: 0 },
+        { x: angularVelocity.x * 0.4, y: angularVelocity.y * 0.4, z: angularVelocity.z * 0.4 },
         true,
       );
       return;
@@ -225,6 +236,13 @@ export function CarController({
       forwardDir.normalize();
     } else {
       forwardDir.set(0, 0, 1);
+    }
+
+    rightDir.set(1, 0, 0).applyQuaternion(rotationQuat);
+    if (rightDir.lengthSq() > 1e-6) {
+      rightDir.normalize();
+    } else {
+      rightDir.set(1, 0, 0);
     }
 
     sideDir.copy(forwardDir).cross(UP).normalize();
@@ -269,7 +287,20 @@ export function CarController({
     }
 
     const angularVelocity = body.angvel();
+    worldAngularVelocityVec.set(
+      angularVelocity.x,
+      angularVelocity.y,
+      angularVelocity.z,
+    );
+    inverseRotationQuat.copy(rotationQuat).invert();
+    localAngularVelocityVec
+      .copy(worldAngularVelocityVec)
+      .applyQuaternion(inverseRotationQuat);
+
+    const localPitchRate = localAngularVelocityVec.x;
+    const localRollRate = localAngularVelocityVec.z;
     const pitchAngle = Math.asin(Math.max(-1, Math.min(1, driveDir.y)));
+    const rollAngle = Math.asin(Math.max(-1, Math.min(1, rightDir.y)));
 
     let pitchCorrection = 0;
     if (pitchAngle < -MAX_NOSE_DOWN_ANGLE) {
@@ -282,14 +313,27 @@ export function CarController({
 
     const stabilizedPitchRate = Math.max(
       -MAX_PITCH_RATE,
-      Math.min(MAX_PITCH_RATE, angularVelocity.x * PITCH_RATE_DAMP + pitchCorrection),
+      Math.min(MAX_PITCH_RATE, localPitchRate * PITCH_RATE_DAMP + pitchCorrection),
     );
+
+    let rollCorrection = 0;
+    if (rollAngle < -MAX_ROLL_ANGLE) {
+      rollCorrection = -(-MAX_ROLL_ANGLE - rollAngle) * ROLL_RETURN_GAIN;
+    } else if (rollAngle > MAX_ROLL_ANGLE) {
+      rollCorrection = (rollAngle - MAX_ROLL_ANGLE) * ROLL_RETURN_GAIN;
+    }
+
+    const stabilizedRollRate = Math.max(
+      -MAX_ROLL_RATE,
+      Math.min(MAX_ROLL_RATE, localRollRate * ROLL_RATE_DAMP + rollCorrection),
+    );
+
+    let yawCommand = angularVelocity.y * IDLE_YAW_DAMP;
 
     if (steer !== 0) {
       headingLockYawRef.current = headingYaw;
       const turnScale = Math.max(0.35, Math.min(1.2, planarSpeed / 5));
-      const yawSpeed = steer * TURN_RATE * turnScale;
-      body.setAngvel({ x: stabilizedPitchRate, y: yawSpeed, z: 0 }, true);
+      yawCommand = steer * TURN_RATE * turnScale;
     } else {
       const shouldAssistStraight = throttle !== 0 && planarSpeed > STRAIGHT_ASSIST_MIN_SPEED;
 
@@ -303,14 +347,26 @@ export function CarController({
           -STRAIGHT_ASSIST_MAX_YAW_SPEED,
           Math.min(STRAIGHT_ASSIST_MAX_YAW_SPEED, yawError * STRAIGHT_ASSIST_GAIN),
         );
-        const stabilizedYaw = yawAssist + angularVelocity.y * STRAIGHT_ASSIST_ANGULAR_DAMP;
-
-        body.setAngvel({ x: stabilizedPitchRate, y: stabilizedYaw, z: 0 }, true);
+        yawCommand = yawAssist + angularVelocity.y * STRAIGHT_ASSIST_ANGULAR_DAMP;
       } else {
         headingLockYawRef.current = null;
-        body.setAngvel({ x: stabilizedPitchRate, y: angularVelocity.y * IDLE_YAW_DAMP, z: 0 }, true);
+        yawCommand = angularVelocity.y * IDLE_YAW_DAMP;
       }
     }
+
+    desiredAngularVelocityVec.copy(UP).multiplyScalar(yawCommand);
+    pitchAngularVelocityVec.copy(rightDir).multiplyScalar(stabilizedPitchRate);
+    rollAngularVelocityVec.copy(driveDir).multiplyScalar(stabilizedRollRate);
+    desiredAngularVelocityVec.add(pitchAngularVelocityVec).add(rollAngularVelocityVec);
+
+    body.setAngvel(
+      {
+        x: desiredAngularVelocityVec.x,
+        y: desiredAngularVelocityVec.y,
+        z: desiredAngularVelocityVec.z,
+      },
+      true,
+    );
 
     if (planarSpeed > MAX_SPEED) {
       const ratio = MAX_SPEED / planarSpeed;
@@ -320,7 +376,7 @@ export function CarController({
       );
     }
 
-    // Keep pitch/roll available for ramp transitions. Angular damping handles stabilization.
+    // Keep pitch/roll available for ramp transitions while local-axis stabilization prevents side lean.
   });
 
   return null;

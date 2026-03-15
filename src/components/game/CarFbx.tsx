@@ -226,7 +226,7 @@ export function CarFbx({
         angularDamping={3.4}
         ccd
         canSleep={false}
-        enabledRotations={[true, true, false]}
+        enabledRotations={[true, true, true]}
       >
         <CuboidCollider
           args={[0.9, 0.33, 1.7]}
