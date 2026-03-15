@@ -52,6 +52,37 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
   const racePhaseRef = useRef<RacePhase>("setup");
   const sceneReady = isCarLoaded && isTrackLoaded && !assetMissing;
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const navigationEntry = window.performance
+      .getEntriesByType("navigation")
+      .at(0) as PerformanceNavigationTiming | undefined;
+    const isReload = navigationEntry?.type === "reload";
+
+    let initialDocumentPathname: string | null = null;
+    if (navigationEntry?.name) {
+      try {
+        initialDocumentPathname = new URL(navigationEntry.name).pathname;
+      } catch {
+        initialDocumentPathname = null;
+      }
+    }
+
+    const loadedRaceDocument =
+      initialDocumentPathname === "/race" ||
+      initialDocumentPathname === "/race/" ||
+      initialDocumentPathname?.startsWith("/race/") === true;
+
+    if (!isReload || !loadedRaceDocument) {
+      return;
+    }
+
+    router.replace("/");
+  }, [router]);
+
   const beginRaceIfReady = () => {
     if (racePhaseRef.current !== "setup") {
       return;
@@ -195,6 +226,8 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
       {racePhase === "finished" && (
         <div className="win-overlay">
           <div className="setup-panel setup-panel--win win-panel">
+                       
+
             <h2>You Win!</h2>
             <p>{targetLaps} laps completed.</p>
 

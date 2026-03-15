@@ -38,6 +38,9 @@ const gateOffset = new Vector3();
 const planarVelocity = new Vector3();
 const MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE = 4.2;
 const FINISH_DECK_LOCK_TOLERANCE = 1.05;
+const MIN_FINISH_HEIGHT_OFFSET = -0.2;
+const MAX_INITIAL_FINISH_HEIGHT_ABS = 1.2;
+const MAX_LOCKED_FINISH_HEIGHT_DELTA = 0.65;
 const FINISH_CENTER = new Vector3(
   FINISH_LINE_POSITION[0],
   FINISH_LINE_POSITION[1],
@@ -234,12 +237,18 @@ function RaceTracker({
     }
 
     const inGeneralHeightBand =
-      Math.abs(heightAtCross) <= effectiveHeightTolerance;
+      heightAtCross >= MIN_FINISH_HEIGHT_OFFSET &&
+      Math.abs(heightAtCross) <=
+        Math.min(effectiveHeightTolerance, MAX_INITIAL_FINISH_HEIGHT_ABS);
     const lockedFinishHeightOffset = lockedFinishHeightOffsetRef.current;
+    const lockedHeightTolerance = Math.min(
+      FINISH_DECK_LOCK_TOLERANCE,
+      MAX_LOCKED_FINISH_HEIGHT_DELTA,
+    );
     const inLockedHeightBand =
       lockedFinishHeightOffset === null ||
       Math.abs(heightAtCross - lockedFinishHeightOffset) <=
-        FINISH_DECK_LOCK_TOLERANCE;
+        lockedHeightTolerance;
     const inHeightBand = inGeneralHeightBand && inLockedHeightBand;
     const withinFinishLane = Math.abs(sideAtCross) <= laneTolerance;
     const crossingDirectionAvailable = crossingDirection !== null;
