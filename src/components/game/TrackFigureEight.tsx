@@ -7,11 +7,19 @@ import { Mesh, Object3D } from "three";
 
 const TRACK_GLB_PATH = "/track/mini_race_track_figure_8.glb";
 const TRACK_HORIZONTAL_STRETCH = 1.3;
+const COLLIDER_EXCLUDED_NAME_SNIPPETS = [
+  "wiremesh",
+  "railing_metal",
+  "ground",
+  "pillars",
+];
 
 function prepareTrackScene(root: Object3D): Object3D {
   const scene = root.clone(true);
   scene.scale.set(TRACK_HORIZONTAL_STRETCH, 1, 1.5);
   scene.updateMatrixWorld(true);
+
+  const nodesToRemove: Object3D[] = [];
 
   scene.traverse((node) => {
     const maybeMesh = node as Mesh;
@@ -19,9 +27,25 @@ function prepareTrackScene(root: Object3D): Object3D {
       return;
     }
 
+    const meshName = maybeMesh.name.toLowerCase();
+    const shouldExclude = COLLIDER_EXCLUDED_NAME_SNIPPETS.some((snippet) =>
+      meshName.includes(snippet),
+    );
+
+    if (shouldExclude) {
+      nodesToRemove.push(maybeMesh);
+      return;
+    }
+
     maybeMesh.castShadow = true;
     maybeMesh.receiveShadow = true;
   });
+
+  for (const node of nodesToRemove) {
+    node.parent?.remove(node);
+  }
+
+  scene.updateMatrixWorld(true);
 
   return scene;
 }
@@ -42,7 +66,7 @@ export function TrackFigureEight({ onLoaded }: TrackFigureEightProps) {
     <RigidBody
       type="fixed"
       colliders="trimesh"
-      friction={1.35}
+      friction={1.25}
       restitution={0.02}
     >
       <primitive object={trackScene} />

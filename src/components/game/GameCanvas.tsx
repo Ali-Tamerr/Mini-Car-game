@@ -36,6 +36,7 @@ const UP = new Vector3(0, 1, 0);
 const frameDelta = new Vector3();
 const gateOffset = new Vector3();
 const planarVelocity = new Vector3();
+const MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE = 2.2;
 const FINISH_CENTER = new Vector3(
   FINISH_LINE_POSITION[0],
   FINISH_LINE_POSITION[1],
@@ -166,14 +167,23 @@ function RaceTracker({
     );
     const forwardOffset = gateOffset.dot(FINISH_FORWARD);
     const sideOffset = gateOffset.dot(FINISH_SIDE);
+    const radialOffset = Math.hypot(forwardOffset, sideOffset);
 
+    const effectiveHeightTolerance = Math.min(
+      FINISH_GATE_HEIGHT_TOLERANCE,
+      MAX_EFFECTIVE_FINISH_HEIGHT_TOLERANCE,
+    );
     const inHeightBand =
-      Math.abs(translation.y - FINISH_CENTER.y) <= FINISH_GATE_HEIGHT_TOLERANCE;
+      Math.abs(translation.y - FINISH_CENTER.y) <= effectiveHeightTolerance;
     const withinFinishLane = Math.abs(sideOffset) <= FINISH_GATE_HALF_WIDTH;
 
+    const armDistanceThreshold = Math.max(
+      FINISH_GATE_ARM_FORWARD_DISTANCE,
+      FINISH_GATE_ARM_SIDE_DISTANCE,
+    );
     const farEnoughToArm =
-      Math.abs(forwardOffset) >= FINISH_GATE_ARM_FORWARD_DISTANCE ||
-      Math.abs(sideOffset) >= FINISH_GATE_ARM_SIDE_DISTANCE;
+      radialOffset >= armDistanceThreshold ||
+      distanceSinceLapRef.current >= FINISH_GATE_MIN_LAP_DISTANCE * 0.4;
     if (!lapArmedRef.current && farEnoughToArm) {
       lapArmedRef.current = true;
     }

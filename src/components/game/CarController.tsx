@@ -51,6 +51,7 @@ const MAX_ROLL_RATE = 2.2;
 const SPAWN_GUARD_SECONDS = 12;
 const SPAWN_GUARD_MIN_Y = -0.25;
 const SPAWN_GUARD_RADIUS = 16;
+const FALLBACK_RESET_MIN_Y = -8;
 
 type RawKeyState = {
   forward: boolean;
@@ -185,6 +186,12 @@ export function CarController({
     const isReset = rawKeys.reset;
 
     const translation = body.translation();
+
+    if (translation.y < FALLBACK_RESET_MIN_Y) {
+      resetToSpawn(body);
+      return;
+    }
+
     const distanceFromSpawn = Math.hypot(
       translation.x - spawnPosition[0],
       translation.z - spawnPosition[2],
