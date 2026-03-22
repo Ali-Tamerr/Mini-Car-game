@@ -1,6 +1,6 @@
 1:"$Sreact.fragment"
-2:I[95392,["/_next/static/chunks/a534e1ba6e176260.js","/_next/static/chunks/58dff50751690028.js"],"default"]
-3:I[97367,["/_next/static/chunks/2f236954d6a65e12.js"],"OutletBoundary"]
+2:I[95392,["/Mini-Car-game/_next/static/chunks/a534e1ba6e176260.js","/Mini-Car-game/_next/static/chunks/58dff50751690028.js"],"default"]
+3:I[97367,["/Mini-Car-game/_next/static/chunks/2f236954d6a65e12.js"],"OutletBoundary"]
 4:"$Sreact.suspense"
-0:{"buildId":"a5wXIhXBlVj4l3TmvXN6N","rsc":["$","$1","c",{"children":[["$","$L2",null,{}],[["$","script","script-0",{"src":"/_next/static/chunks/a534e1ba6e176260.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/58dff50751690028.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
+0:{"buildId":"UTYbwqqvyMnt-QpZnxfYK","rsc":["$","$1","c",{"children":[["$","$L2",null,{}],[["$","script","script-0",{"src":"/Mini-Car-game/_next/static/chunks/a534e1ba6e176260.js","async":true}],["$","script","script-1",{"src":"/Mini-Car-game/_next/static/chunks/58dff50751690028.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
 5:null

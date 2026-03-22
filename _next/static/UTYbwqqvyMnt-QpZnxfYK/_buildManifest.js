@@ -1,7 +1,12 @@
 self.__BUILD_MANIFEST = {
   "__rewrites": {
     "afterFiles": [],
-    "beforeFiles": [],
+    "beforeFiles": [
+      {
+        "source": "/Mini-Car-game//_next/:path+",
+        "destination": "/Mini-Car-game/_next/:path+"
+      }
+    ],
     "fallback": []
   },
   "sortedPages": [
