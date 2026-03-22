@@ -1,8 +1,5 @@
 # 🏎️ Mini 3D Car Racing
-
-[![Deploy to GitHub Pages](https://github.com/OWNER/REPOSITORY/actions/workflows/deploy.yml/badge.svg)](https://github.com/OWNER/REPOSITORY/actions/workflows/deploy.yml)
-
-A high-performance, single-player 3D racing prototype built with **Next.js**, **React Three Fiber**, and **Rapier Physics**. Drive through a figure-eight track, beat your best lap times, and customize your race settings.
+A single-player 3D racing prototype built with **Next.js**, **React Three Fiber**, and **Rapier Physics**. Drive through a figure-eight track, beat your best lap times, and customize your race settings.
 
 ## ✨ Features
 
