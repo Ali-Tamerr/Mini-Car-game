@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node -e \"require('node:fs').closeSync(require('node:fs').openSync('out/.nojekyll','w'))\"",
     "predeploy": "rimraf out && npm run build",
-    "deploy": "gh-pages -d out",
+    "deploy": "gh-pages -d out --dotfiles",
     "start": "next start",
     "lint": "eslint"
   },
