@@ -13,9 +13,11 @@ import {
   Vector3,
 } from "three";
 import { FBXLoader, GLTFLoader } from "three-stdlib";
+import { assetExists } from "./assetProbe";
+import { publicAssetPath } from "./publicAssetPath";
 
-const CAR_GLB_PATH = "/models/car/car.glb";
-const CAR_FBX_PATH = "/models/car/car.fbx";
+const CAR_GLB_PATH = publicAssetPath("/models/car/car.glb");
+const CAR_FBX_PATH = publicAssetPath("/models/car/car.fbx");
 const SHOWCASE_GROUND_CLEARANCE = 0.08;
 
 type CarAssetFormat = "glb" | "fbx" | "none";
@@ -170,14 +172,14 @@ export function CarShowcase({ onLoaded, onAssetMissing }: CarShowcaseProps) {
 
     const selectAssetFormat = async () => {
       try {
-        const glbRes = await fetch(CAR_GLB_PATH, { method: "HEAD" });
-        if (isActive && glbRes.ok) {
+        const glbExists = await assetExists(CAR_GLB_PATH);
+        if (isActive && glbExists) {
           setAssetFormat("glb");
           return;
         }
 
-        const fbxRes = await fetch(CAR_FBX_PATH, { method: "HEAD" });
-        if (isActive && fbxRes.ok) {
+        const fbxExists = await assetExists(CAR_FBX_PATH);
+        if (isActive && fbxExists) {
           setAssetFormat("fbx");
           return;
         }

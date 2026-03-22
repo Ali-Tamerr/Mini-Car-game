@@ -4,8 +4,9 @@ import { useGLTF } from "@react-three/drei";
 import { RigidBody } from "@react-three/rapier";
 import { useEffect, useMemo } from "react";
 import { Mesh, Object3D } from "three";
+import { publicAssetPath } from "./publicAssetPath";
 
-const TRACK_GLB_PATH = "/track/mini_race_track_figure_8.glb";
+const TRACK_GLB_PATH = publicAssetPath("/track/mini_race_track_figure_8.glb");
 const TRACK_HORIZONTAL_STRETCH = 1.3;
 const COLLIDER_EXCLUDED_NAME_SNIPPETS = [
   "wiremesh",
