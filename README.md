@@ -21,33 +21,6 @@ A high-performance, single-player 3D racing prototype built with **Next.js**, **
 - **Styling**: [Tailwind CSS](https://tailwindcss.com)
 - **Deployment**: GitHub Actions & Pages
 
-## 🏁 Getting Started
-
-### Prerequisites
-
-- Node.js 18.x or later
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/mini-car-game.git
-   cd mini-car-game
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-Open [http://localhost:3000](http://localhost:3000) to start racing!
-
 ## 🕹️ Controls
 
 - **W / Up**: Accelerate
@@ -65,26 +38,6 @@ This project is pre-configured for **GitHub Actions**. Every push to the `main` 
 
 1. Go to your repo **Settings** -> **Pages**.
 2. Under **Build and deployment** -> **Source**, select **GitHub Actions**.
-
-### Manual Deployment
-
-You can also deploy manually using the provided script:
-
-```bash
-npm run deploy
-```
-
-This runs `npm run build` (static export) and publishes the `out/` folder to the `gh-pages` branch.
-
-## 🛠️ Configuration
-
-You can tweak the race physics and lap logic in:
-- `src/components/game/raceConfig.ts`: Finish line sensitivity, spawn positions, and lap intervals.
-- `src/components/game/trackMath.ts`: Geometry and path calculation logic.
-
-## 📄 License
-
-This project is open-sourced under the [MIT License](LICENSE).
 
 ---
 *Built with ❤️ for the 3D Web community.*
