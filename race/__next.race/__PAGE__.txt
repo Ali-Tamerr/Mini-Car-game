@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[57954,["/_next/static/chunks/03a5adbe10d1f9cf.js","/_next/static/chunks/9ad6275ab4cb5e60.js","/_next/static/chunks/c2ce3ac04d657ade.js","/_next/static/chunks/e58a2bf8b26df379.js"],"default"]
+3:I[97367,["/_next/static/chunks/2f236954d6a65e12.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"buildId":"a5wXIhXBlVj4l3TmvXN6N","rsc":["$","$1","c",{"children":[["$","main",null,{"className":"game-page","children":["$","$L2",null,{}]}],[["$","script","script-0",{"src":"/_next/static/chunks/03a5adbe10d1f9cf.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/9ad6275ab4cb5e60.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/c2ce3ac04d657ade.js","async":true}],["$","script","script-3",{"src":"/_next/static/chunks/e58a2bf8b26df379.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
+5:null
