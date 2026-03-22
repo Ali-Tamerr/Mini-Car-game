@@ -41,6 +41,16 @@ This repository includes a workflow at `.github/workflows/deploy.yml` that deplo
 
 The workflow builds with a repo-aware base path (for project pages like `/your-repo`) and publishes the static output from `out/`.
 
+## Manual Deploy Command
+
+If you want to deploy directly from your local machine, use:
+
+```bash
+npm run deploy
+```
+
+The `predeploy` script runs the static build first, then `deploy` publishes the `out/` folder to the `gh-pages` branch.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
