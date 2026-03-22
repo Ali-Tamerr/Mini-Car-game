@@ -39,7 +39,7 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
   const [cameraZoom, setCameraZoom] = useState(0.9);
   const [racePhase, setRacePhase] = useState<RacePhase>("setup");
   const [raceSessionId] = useState(0);
-  const [targetLaps] = useState(() => clampLaps(initialLaps));
+  const [targetLaps, setTargetLaps] = useState(() => clampLaps(initialLaps));
   const [completedLaps, setCompletedLaps] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [lastLapMs, setLastLapMs] = useState<number | null>(null);
@@ -51,6 +51,13 @@ export default function GameExperience({ initialLaps = 4 }: GameExperienceProps)
   const assetMissingRef = useRef(false);
   const racePhaseRef = useRef<RacePhase>("setup");
   const sceneReady = isCarLoaded && isTrackLoaded && !assetMissing;
+
+  useEffect(() => {
+    const lapsParam = new URLSearchParams(window.location.search).get("laps");
+    if (lapsParam !== null) {
+      setTargetLaps(clampLaps(Number(lapsParam)));
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
