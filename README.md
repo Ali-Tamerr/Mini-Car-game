@@ -27,15 +27,5 @@ A single-player 3D racing prototype built with **Next.js**, **React Three Fiber*
 - **R**: Reset car position
 - **Mouse**: UI interactions and camera zoom slider
 
-## 📦 Deployment
-
-### Automated Deployment (Recommended)
-
-This project is pre-configured for **GitHub Actions**. Every push to the `main` branch will automatically trigger a build and deploy to GitHub Pages.
-
-1. Go to your repo **Settings** -> **Pages**.
-2. Under **Build and deployment** -> **Source**, select **GitHub Actions**.
-
 ---
 *Built with ❤️ for the 3D Web community.*
-
